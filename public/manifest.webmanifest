@@ -1,0 +1,10 @@
+{
+  "name": "Where's the Money",
+  "short_name": "WTM",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0b1020",
+  "theme_color": "#0b1020",
+  "description": "Assistente financeiro da ARTISYS",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}
