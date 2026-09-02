@@ -111,7 +111,7 @@ export async function listAllTransactions(env: PluggyEnv, accountId: string) {
   let pages = 0;
 
   while (nextUrl && pages < 50) {
-    const data = await authorizedGet<ListResponse<PluggyTransaction>>(env, nextUrl);
+    const data: ListResponse<PluggyTransaction> = await authorizedGet<ListResponse<PluggyTransaction>>(env, nextUrl);
     rows.push(...(data.results || []));
     pages += 1;
 
