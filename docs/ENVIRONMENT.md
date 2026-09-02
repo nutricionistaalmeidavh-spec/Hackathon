@@ -1,91 +1,119 @@
 # Environment Variables e Secrets
 
-## Resposta curta
+## Regra principal
 
-**O `.env` real não vai para o Git.**
+**O ENV real não vai para o GitHub.**
 
-O Git recebe somente `.env.example`, com os nomes das variáveis e valores vazios. O arquivo real (`.env.local`, por exemplo) existe apenas no iSH para testes locais. Em produção, os valores são cadastrados diretamente no provedor de deploy, como Vercel.
+O Git recebe somente `.env.example`, com os nomes das variáveis e valores vazios. Os valores reais ficam em dois lugares possíveis:
 
-## Arquivos
+- no iSH, apenas para teste local;
+- no Cloudflare Pages, para Preview e Production.
 
-Commitado:
+## O que vai para o Git
 
 ```text
 .env.example
 ```
 
-Nunca commitados:
+Exemplo:
+
+```dotenv
+PLUGGY_CLIENT_ID=
+PLUGGY_CLIENT_SECRET=
+VITE_APP_ENV=development
+```
+
+## O que nunca vai para o Git
 
 ```text
 .env
 .env.local
 .env.production
-.env.*.local
+.dev.vars
+.dev.vars.*
 ```
 
-O `.gitignore` já protege esses arquivos.
+O `.gitignore` já bloqueia esses arquivos.
 
 ## Local no iSH
 
-Crie sua cópia local:
+Para testar somente frontend/importação:
 
 ```bash
-cp .env.example .env.local
-nano .env.local
+npm run dev
 ```
 
-Preencha no iSH, não no Git:
+Para testar também as Pages Functions e a Pluggy, crie um arquivo local de secrets:
+
+```bash
+nano .dev.vars
+```
+
+Conteúdo:
 
 ```dotenv
-PLUGGY_CLIENT_ID=valor_real_aqui
-PLUGGY_CLIENT_SECRET=valor_real_aqui
-VITE_APP_ENV=development
+PLUGGY_CLIENT_ID="valor_real_aqui"
+PLUGGY_CLIENT_SECRET="valor_real_aqui"
 ```
 
-Depois confirme que o Git não está vendo o arquivo:
+Depois:
+
+```bash
+npm run dev:pages
+```
+
+O Wrangler usa `.dev.vars` localmente. Esse arquivo não deve aparecer em:
 
 ```bash
 git status
 ```
 
-`.env.local` não deve aparecer.
+## Produção no Cloudflare Pages
 
-## Produção no Vercel
+Depois de criar o projeto no Cloudflare Pages com este repositório:
 
-Ao conectar o repositório ao Vercel, abra o projeto e cadastre em **Settings → Environment Variables**:
+1. abra **Workers & Pages**;
+2. selecione o projeto;
+3. abra **Settings**;
+4. entre em **Variables and Secrets**;
+5. adicione:
 
 ```text
 PLUGGY_CLIENT_ID
 PLUGGY_CLIENT_SECRET
 ```
 
-Marque pelo menos o ambiente `Production`; normalmente também `Preview` para testar branches/PRs.
+Cadastre os valores reais para **Production** e, se quiser testar branches/PRs, também para **Preview**.
 
-Depois disso, cada push ao GitHub pode disparar um build. O Vercel injeta as variáveis no backend durante execução/deploy; elas não entram no repositório.
+As Pages Functions leem esses valores em runtime através de `context.env`. Eles não entram no bundle do React e não são enviados ao navegador.
 
-## Pelo CLI no iSH
+## Pelo iSH
 
-Se preferir fazer tudo pelo terminal:
-
-```bash
-npm install -g vercel
-vercel login
-vercel link
-vercel env add PLUGGY_CLIENT_ID production
-vercel env add PLUGGY_CLIENT_SECRET production
-```
-
-O CLI pede o valor de forma interativa. Não coloque o secret no comando para evitar histórico do shell.
-
-Para puxar variáveis do projeto para um arquivo local:
+O fluxo principal continua sendo Git:
 
 ```bash
-vercel env pull .env.local
+git pull
+npm test
+npm run build
+git add .
+git commit -m "feat: descrição"
+git push
 ```
 
-## O que pode começar com VITE_
+Se o projeto do Cloudflare estiver conectado ao GitHub, o push dispara o build e o deploy automaticamente.
 
-Variáveis `VITE_*` são incorporadas ao JavaScript enviado ao navegador. Portanto são **públicas**.
+Também existe deploy manual pelo Wrangler:
+
+```bash
+npx wrangler login
+npm run deploy:pages
+```
+
+Para um projeto conectado por Git, prefira o deploy automático pelo push.
+
+## Variáveis VITE_
+
+Variáveis que começam com `VITE_` podem ser incorporadas ao JavaScript entregue ao navegador. Portanto devem ser tratadas como públicas.
 
 Pode:
 
@@ -94,17 +122,24 @@ VITE_APP_ENV
 VITE_PUBLIC_ANALYTICS_ID
 ```
 
-Não pode:
+Nunca:
 
 ```text
 VITE_PLUGGY_CLIENT_SECRET
 VITE_OPENAI_API_KEY
 ```
 
-A Pluggy Client Secret permanece apenas em `api/open-finance/*` no servidor.
+`PLUGGY_CLIENT_ID` e `PLUGGY_CLIENT_SECRET` permanecem no runtime das Cloudflare Pages Functions.
 
-## Por que `npm run build` funciona sem o secret
+## Por que o build funciona sem o ENV real
 
-O build do frontend compila a interface. As credenciais da Pluggy são necessárias quando as funções serverless executam em runtime. Portanto é possível rodar `npm run build` no iSH sem colocar secrets no Git.
+`npm run build` compila o frontend e verifica o código das Functions. Ele não precisa autenticar na Pluggy.
 
-Para testar Open Finance localmente, aí sim o runtime local (`vercel dev`) precisa acessar `.env.local`.
+Os secrets só são necessários quando as rotas abaixo são executadas:
+
+```text
+/api/open-finance/status
+/api/open-finance/connect-token
+/api/open-finance/data
+/api/open-finance/webhook
+```
