@@ -2,13 +2,13 @@
 
 ## Visão
 
-Where's the Money é mantido com um fluxo em que o celular é a estação de desenvolvimento. O iPhone executa o iSH como terminal Linux, Git faz o versionamento, GitHub é a fonte oficial e o CI/CD executa os builds de produção.
+Where's the Money é mantido com um fluxo em que o celular é a estação de desenvolvimento. O iPhone executa o iSH como terminal Linux, Git faz o versionamento, GitHub é a fonte oficial e o Cloudflare Pages executa o deploy.
 
 ```text
-iPhone → iSH → Git → GitHub → CI/CD → Produção
+iPhone → iSH → Git → GitHub → Cloudflare Pages → Produção
 ```
 
-A vantagem não é fingir que o telefone substitui um servidor de build. O telefone controla o processo; builds pesados e publicação ficam na nuvem.
+O telefone controla o processo. Build de produção, Pages Functions e distribuição global ficam na nuvem.
 
 ## Preparar o iSH
 
@@ -28,7 +28,7 @@ npm --version
 ssh -T git@github.com
 ```
 
-## Clonar o projeto
+## Clonar
 
 ```bash
 git clone git@github.com:nutricionistaalmeidavh-spec/Hackathon.git
@@ -40,41 +40,63 @@ npm install
 
 ```bash
 git pull
+
+# editar
+
 npm test
 npm run build
-# editar arquivos
-npm test
-npm run build
+
 git status
 git add .
 git commit -m "feat: descreva a mudança"
 git push origin main
 ```
 
-## Editar pelo iPhone
+Com o GitHub conectado ao Pages, o último comando inicia o deploy automaticamente.
 
-Para pequenas alterações, `nano` funciona bem:
-
-```bash
-nano src/App.tsx
-```
-
-Também é possível usar editores iOS que abrem a pasta do iSH, mas o fluxo não depende deles.
-
-## Rodar a interface no celular
+## Interface local
 
 ```bash
 npm run dev
 ```
 
-O Vite imprime o endereço local. No mesmo iPhone, abra o endereço indicado pelo terminal no navegador. Se quiser testar as funções `/api` e Open Finance localmente, use `vercel dev` em vez de `npm run dev`.
+Isso é suficiente para interface, motor determinístico, Radar e importação de arquivos.
+
+## App completo local com Open Finance
+
+Crie `.dev.vars` com as credenciais reais e execute:
+
+```bash
+npm run dev:pages
+```
+
+Esse comando gera `dist` e inicia o runtime local do Cloudflare Pages com as Functions.
+
+## Editar pelo celular
+
+Para mudanças rápidas:
+
+```bash
+nano src/App.tsx
+```
+
+Arquivos mais importantes:
+
+```text
+src/App.tsx
+src/core/financeEngine.ts
+src/importers/statementImport.ts
+src/integrations/pluggy.ts
+functions/api/open-finance/
+server/pluggy.ts
+```
 
 ## Regra de ouro
 
-Antes de todo push que pretende ir para produção:
+Antes do push:
 
 ```bash
 npm test && npm run build
 ```
 
-O mesmo check deve existir no CI para impedir que um commit quebrado seja promovido.
+O GitHub Actions repete essa verificação na nuvem.
