@@ -4,7 +4,7 @@
 
 **Decisão:** Git passa a ser a única fonte canônica do código.
 
-**Motivo:** builders facilitaram prototipação, mas introduziram limites de conta e estruturas proprietárias. O produto precisa sobreviver à troca de plataforma.
+**Motivo:** builders facilitaram prototipação, mas introduziram limites e estruturas proprietárias. O produto precisa sobreviver à troca de plataforma.
 
 ## ADR-002 — Vite + React + TypeScript
 
@@ -22,7 +22,7 @@
 
 **Decisão:** Client Secret da Pluggy e outras chaves privadas nunca usam prefixo `VITE_` e nunca chegam ao browser.
 
-**Motivo:** qualquer variável `VITE_*` pode ser lida pelo usuário final no bundle.
+**Motivo:** qualquer variável `VITE_*` pode ser lida no bundle entregue ao usuário final.
 
 ## ADR-005 — Backend serverless fino
 
@@ -32,6 +32,18 @@
 
 ## ADR-006 — Mobile-controlled development
 
-**Decisão:** iPhone + iSH é um fluxo de desenvolvimento suportado oficialmente para o projeto.
+**Decisão:** iPhone + iSH é um fluxo de desenvolvimento suportado oficialmente.
 
-**Motivo:** demonstrar que versionamento, revisão, testes e release podem ser controlados do celular, enquanto a nuvem executa infraestrutura pesada.
+**Motivo:** versionamento, testes e release podem ser controlados do celular, enquanto a nuvem executa infraestrutura pesada.
+
+## ADR-007 — Cloudflare Pages como runtime web
+
+**Decisão:** o runtime web atual é Cloudflare Pages + Pages Functions.
+
+**Motivo:** manter frontend e backend same-origin, deploy automático pelo GitHub e edge runtime sem dependência do AppDeploy/Floot.
+
+## ADR-008 — Pluggy via REST no edge
+
+**Decisão:** as Pages Functions chamam a API REST da Pluggy diretamente com `fetch`, sem `pluggy-sdk` no backend.
+
+**Motivo:** reduzir dependência de APIs Node e manter compatibilidade natural com Cloudflare Workers/Pages Functions.
