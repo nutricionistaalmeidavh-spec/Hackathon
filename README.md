@@ -14,14 +14,14 @@ A classificação financeira não começa por IA. Primeiro entram evidências ve
 
 - Inbox financeira com estados Pendência / Revisar / Auto / Categorizado.
 - Importação OFX, CSV, TXT, XLS e XLSX no navegador.
-- Pluggy Sandbox/Open Finance via Cloudflare Pages Functions.
+- Pluggy Sandbox/Open Finance via Cloudflare Worker.
 - Classificação determinística de categorias comuns.
 - Regras manuais reutilizáveis.
 - Detecção de recorrência semanal, quinzenal e mensal por estabelecimento + direção + intervalo + valor.
 - Radar de caixa de 30 dias sem IA.
 - Proteção contra datas malformadas.
 - Persistência local para o protótipo.
-- Deploy preparado para Cloudflare Pages com GitHub como fonte oficial.
+- Deploy preparado para Cloudflare Workers + Static Assets com GitHub como fonte oficial.
 
 ## Rodar só o frontend
 
@@ -37,43 +37,51 @@ Isso cobre interface, importação de arquivos, motor e Radar.
 Crie `.dev.vars` com as credenciais da Pluggy e execute:
 
 ```bash
-npm run dev:pages
+npm run dev:worker
 ```
 
-O Wrangler sobe o frontend e as Pages Functions no runtime local do Cloudflare.
+O Wrangler sobe o Worker, as rotas Open Finance e os assets compilados em `dist/`.
 
 ## Build
 
 ```bash
 npm test
 npm run build
+npx wrangler deploy --dry-run
 ```
 
-O build também verifica TypeScript das Pages Functions.
+O build verifica TypeScript do frontend, Worker e helper server-side.
 
 ## Deploy
 
-Conecte este repositório a um projeto do Cloudflare Pages:
+O projeto de produção é o Cloudflare Worker `hackathon`, conectado ao branch `main` deste repositório.
 
-- build command: `npm run build`
-- output directory: `dist`
-- production branch: `main`
+Configuração canônica no Git:
 
-Depois cadastre os secrets no Cloudflare:
+- Worker entry point: `worker/index.ts`
+- static assets: `dist/`
+- API Worker-first: `/api/*`
+- SPA fallback: `single-page-application`
+
+Os secrets de runtime são:
 
 ```text
 PLUGGY_CLIENT_ID
 PLUGGY_CLIENT_SECRET
 ```
 
-Cada push em `main` pode gerar um novo deploy automaticamente.
+Cada push em `main` gera uma nova build no projeto conectado. O repositório também suporta deploy manual com:
+
+```bash
+npm run deploy:worker
+```
 
 ## Desenvolvimento pelo celular
 
 Este projeto adotou Git como fonte oficial e um fluxo de desenvolvimento pelo iPhone usando iSH.
 
 ```text
-iPhone → iSH → Git → GitHub → Cloudflare Pages → Produção
+iPhone → iSH → Git → GitHub → Cloudflare Worker → Produção
 ```
 
 Veja [docs/MOBILE-BUILD.md](docs/MOBILE-BUILD.md).
