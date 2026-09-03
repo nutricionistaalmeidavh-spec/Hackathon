@@ -2,13 +2,13 @@
 
 ## Visão
 
-Where's the Money é mantido com um fluxo em que o celular é a estação de desenvolvimento. O iPhone executa o iSH como terminal Linux, Git faz o versionamento, GitHub é a fonte oficial e o Cloudflare Pages executa o deploy.
+Where's the Money é mantido com um fluxo em que o celular é a estação de desenvolvimento. O iPhone executa o iSH como terminal Linux, Git faz o versionamento, GitHub é a fonte oficial e o Cloudflare Worker executa o deploy.
 
 ```text
-iPhone → iSH → Git → GitHub → Cloudflare Pages → Produção
+iPhone → iSH → Git → GitHub → Cloudflare Worker → Produção
 ```
 
-O telefone controla o processo. Build de produção, Pages Functions e distribuição global ficam na nuvem.
+O telefone controla o processo. Build de produção, API serverless e distribuição global ficam na nuvem.
 
 ## Preparar o iSH
 
@@ -52,7 +52,7 @@ git commit -m "feat: descreva a mudança"
 git push origin main
 ```
 
-Com o GitHub conectado ao Pages, o último comando inicia o deploy automaticamente.
+Com o GitHub conectado ao Worker `hackathon`, o último comando inicia o deploy automaticamente.
 
 ## Interface local
 
@@ -67,10 +67,10 @@ Isso é suficiente para interface, motor determinístico, Radar e importação d
 Crie `.dev.vars` com as credenciais reais e execute:
 
 ```bash
-npm run dev:pages
+npm run dev:worker
 ```
 
-Esse comando gera `dist` e inicia o runtime local do Cloudflare Pages com as Functions.
+Esse comando gera `dist` e inicia o Worker local com as rotas Open Finance e o binding de assets.
 
 ## Editar pelo celular
 
@@ -87,8 +87,10 @@ src/App.tsx
 src/core/financeEngine.ts
 src/importers/statementImport.ts
 src/integrations/pluggy.ts
-functions/api/open-finance/
+worker/index.ts
+worker/routes/open-finance/
 server/pluggy.ts
+wrangler.toml
 ```
 
 ## Regra de ouro
@@ -96,7 +98,7 @@ server/pluggy.ts
 Antes do push:
 
 ```bash
-npm test && npm run build
+npm test && npm run build && npx wrangler deploy --dry-run
 ```
 
-O GitHub Actions repete essa verificação na nuvem.
+O GitHub Actions repete testes, build e dry-run do Worker na nuvem.
