@@ -38,3 +38,14 @@ Registro cronológico das decisões e mudanças relevantes do projeto.
 - Build passa a type-checkar também Functions e helper server-side.
 - `.dev.vars` documentado para teste local no iSH.
 - Production/Preview secrets passam a ser configurados no Cloudflare Pages.
+
+## 2026-09-03 — Migração definitiva para Cloudflare Workers
+
+- Cloudflare Pages deixa de ser o runtime atual; o histórico acima é preservado apenas como registro.
+- Criado `worker/index.ts` como entry point único do Worker `hackathon`.
+- As quatro rotas Open Finance foram portadas de Pages Functions para módulos do Worker sem alterar URLs públicas.
+- `dist/` passa a ser servido por Workers Static Assets via binding `ASSETS`.
+- `/api/*` usa Worker-first e não cai no fallback da SPA.
+- `wrangler.toml` deixa de usar `pages_build_output_dir` e passa a declarar `main`, assets e SPA fallback.
+- Scripts e TypeScript foram migrados de Pages para Workers.
+- CI passa a validar testes, build e os dois dry-runs de deploy usados localmente e pelo Cloudflare.
