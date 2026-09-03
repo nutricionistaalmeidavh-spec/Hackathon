@@ -36,14 +36,20 @@
 
 **Motivo:** versionamento, testes e release podem ser controlados do celular, enquanto a nuvem executa infraestrutura pesada.
 
-## ADR-007 — Cloudflare Pages como runtime web
+## ADR-007 — Cloudflare Workers + Static Assets como runtime web
 
-**Decisão:** o runtime web atual é Cloudflare Pages + Pages Functions.
+**Decisão:** o runtime web atual é um único Cloudflare Worker ES Module com Static Assets em `dist/` e roteamento Worker-first seletivo para `/api/*`.
 
-**Motivo:** manter frontend e backend same-origin, deploy automático pelo GitHub e edge runtime sem dependência do AppDeploy/Floot.
+**Motivo:** manter frontend e backend same-origin, eliminar a separação Pages/Pages Functions e alinhar o repositório ao projeto Worker `hackathon` já conectado ao GitHub.
 
 ## ADR-008 — Pluggy via REST no edge
 
-**Decisão:** as Pages Functions chamam a API REST da Pluggy diretamente com `fetch`, sem `pluggy-sdk` no backend.
+**Decisão:** o Worker chama a API REST da Pluggy diretamente com `fetch`, sem `pluggy-sdk` no backend.
 
-**Motivo:** reduzir dependência de APIs Node e manter compatibilidade natural com Cloudflare Workers/Pages Functions.
+**Motivo:** reduzir dependência de APIs Node e manter compatibilidade natural com Cloudflare Workers.
+
+## ADR-009 — API antes de SPA
+
+**Decisão:** `/api/*` sempre passa pelo Worker antes dos assets; rota API desconhecida retorna JSON 404 e método incorreto retorna JSON 405.
+
+**Motivo:** impedir que erros de API caiam no fallback `index.html` da SPA e preservar contratos HTTP previsíveis.
