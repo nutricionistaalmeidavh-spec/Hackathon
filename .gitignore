@@ -10,3 +10,14 @@ dist/
 .DS_Store
 *.log
 coverage/
+
+# Expo / React Native local outputs
+.expo/
+apps/mobile/android/
+apps/mobile/ios/
+*.jks
+*.keystore
+google-services.json
+GoogleService-Info.plist
+*.p8
+*.p12
