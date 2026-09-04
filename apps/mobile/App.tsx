@@ -1,8 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
-  Pressable,
   Text,
   View,
 } from 'react-native';
@@ -23,10 +21,26 @@ import {
   setOneSignalPlanTag,
 } from './src/onesignal';
 import { planTag } from './src/subscription-state';
+import {
+  buildNativeSubscriptionEventScript,
+  parseWebSubscriptionCommand,
+  type NativeSubscriptionPayload,
+} from './src/webview-bridge';
+
+const productBackground = '#0b1020';
+const productText = '#f7f8fb';
+const productMuted = '#9ba5b9';
 
 export default function App() {
   const [isPro, setIsPro] = useState(false);
   const [revenueCatConfigured, setRevenueCatConfigured] = useState(false);
+  const webViewRef = useRef<WebView>(null);
+
+  const sendToWeb = (payload: NativeSubscriptionPayload) => {
+    webViewRef.current?.injectJavaScript(
+      buildNativeSubscriptionEventScript(payload),
+    );
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -46,10 +60,21 @@ export default function App() {
         setOneSignalPlanTag(planTag(revenueCatState.isPro));
       }
 
+      sendToWeb({
+        type: 'WTM_SUBSCRIPTION_STATE',
+        configured: revenueCatState.configured,
+        isPro: revenueCatState.isPro,
+      });
+
       unsubscribeRevenueCat = subscribeToCustomerInfo((nextIsPro) => {
         if (!mounted) return;
         setIsPro(nextIsPro);
         setOneSignalPlanTag(planTag(nextIsPro));
+        sendToWeb({
+          type: 'WTM_SUBSCRIPTION_STATE',
+          configured: true,
+          isPro: nextIsPro,
+        });
       });
     })().catch((error: unknown) => {
       console.warn('Falha ao inicializar integrações nativas.', error);
@@ -67,32 +92,60 @@ export default function App() {
     setRevenueCatConfigured(state.configured);
     setIsPro(state.isPro);
     setOneSignalPlanTag(planTag(state.isPro));
+    return state;
+  };
+
+  const emitCurrentState = () => {
+    sendToWeb({
+      type: 'WTM_SUBSCRIPTION_STATE',
+      configured: revenueCatConfigured,
+      isPro,
+    });
   };
 
   const openPlan = async () => {
     if (!revenueCatConfigured) {
-      Alert.alert(
-        'RevenueCat não configurado',
-        'Adicione EXPO_PUBLIC_REVENUECAT_API_KEY ao ambiente do app para testar o plano Pro.',
-      );
+      sendToWeb({
+        type: 'WTM_SUBSCRIPTION_RESULT',
+        action: 'open-plan',
+        ok: false,
+        configured: false,
+        isPro: false,
+      });
       return;
     }
 
     try {
       await presentPlanExperience(isPro);
-      await refreshSubscription();
+      const state = await refreshSubscription();
+      sendToWeb({
+        type: 'WTM_SUBSCRIPTION_RESULT',
+        action: 'open-plan',
+        ok: true,
+        configured: state.configured,
+        isPro: state.isPro,
+      });
     } catch (error) {
       console.warn('Falha ao abrir gerenciamento do plano.', error);
-      Alert.alert('Plano indisponível', 'Não foi possível abrir o plano agora.');
+      sendToWeb({
+        type: 'WTM_SUBSCRIPTION_RESULT',
+        action: 'open-plan',
+        ok: false,
+        configured: revenueCatConfigured,
+        isPro,
+      });
     }
   };
 
   const restore = async () => {
     if (!revenueCatConfigured) {
-      Alert.alert(
-        'RevenueCat não configurado',
-        'Configure a public SDK key antes de restaurar compras.',
-      );
+      sendToWeb({
+        type: 'WTM_SUBSCRIPTION_RESULT',
+        action: 'restore',
+        ok: false,
+        configured: false,
+        isPro: false,
+      });
       return;
     }
 
@@ -100,67 +153,55 @@ export default function App() {
       const state = await restorePurchases();
       setIsPro(state.isPro);
       setOneSignalPlanTag(planTag(state.isPro));
-      Alert.alert(
-        'Compras restauradas',
-        state.isPro ? 'Plano Pro restaurado.' : 'Nenhum plano Pro ativo foi encontrado.',
-      );
+      sendToWeb({
+        type: 'WTM_SUBSCRIPTION_RESULT',
+        action: 'restore',
+        ok: true,
+        configured: state.configured,
+        isPro: state.isPro,
+      });
     } catch (error) {
       console.warn('Falha ao restaurar compras.', error);
-      Alert.alert('Restauração indisponível', 'Tente novamente em instantes.');
+      sendToWeb({
+        type: 'WTM_SUBSCRIPTION_RESULT',
+        action: 'restore',
+        ok: false,
+        configured: revenueCatConfigured,
+        isPro,
+      });
     }
+  };
+
+  const handleWebMessage = (raw: string) => {
+    const command = parseWebSubscriptionCommand(raw);
+    if (!command) return;
+
+    if (command.type === 'WTM_SUBSCRIPTION_REQUEST_STATE') {
+      emitCurrentState();
+      return;
+    }
+
+    if (command.type === 'WTM_SUBSCRIPTION_OPEN_PLAN') {
+      void openPlan();
+      return;
+    }
+
+    void restore();
   };
 
   return (
     <SafeAreaProvider>
       <SafeAreaView
         edges={['top', 'bottom']}
-        style={{ flex: 1, backgroundColor: '#f7f7f5' }}
+        style={{ flex: 1, backgroundColor: productBackground }}
       >
-        <StatusBar style="dark" />
-        <View
-          style={{
-            minHeight: 52,
-            paddingHorizontal: 12,
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 8,
-            borderBottomWidth: 1,
-            borderBottomColor: '#e7e7e2',
-            backgroundColor: '#ffffff',
-          }}
-        >
-          <View style={{ flex: 1 }}>
-            <Text style={{ fontSize: 15, fontWeight: '700', color: '#171717' }}>
-              Where&apos;s the Money
-            </Text>
-            <Text style={{ fontSize: 11, color: '#77756f' }}>
-              {isPro ? 'Plano Pro' : 'Plano Free'}
-            </Text>
-          </View>
-          <Pressable
-            onPress={openPlan}
-            style={{
-              paddingHorizontal: 12,
-              paddingVertical: 8,
-              borderRadius: 999,
-              backgroundColor: '#171717',
-            }}
-          >
-            <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>
-              {isPro ? 'Gerenciar' : 'Plano Pro'}
-            </Text>
-          </Pressable>
-          <Pressable
-            onPress={restore}
-            style={{ paddingHorizontal: 8, paddingVertical: 8 }}
-          >
-            <Text style={{ color: '#4f4e49', fontSize: 12 }}>Restaurar</Text>
-          </Pressable>
-        </View>
-
+        <StatusBar style="light" />
         <WebView
+          ref={webViewRef}
           source={{ uri: mobileConfig.webAppUrl }}
-          style={{ flex: 1, backgroundColor: '#f7f7f5' }}
+          style={{ flex: 1, backgroundColor: productBackground }}
+          onMessage={(event) => handleWebMessage(event.nativeEvent.data)}
+          onLoadEnd={emitCurrentState}
           startInLoadingState
           renderLoading={() => (
             <View
@@ -168,11 +209,11 @@ export default function App() {
                 flex: 1,
                 alignItems: 'center',
                 justifyContent: 'center',
-                backgroundColor: '#f7f7f5',
+                backgroundColor: productBackground,
               }}
             >
               <ActivityIndicator />
-              <Text style={{ marginTop: 10, color: '#77756f' }}>
+              <Text style={{ marginTop: 10, color: productMuted }}>
                 Carregando seu financeiro…
               </Text>
             </View>
@@ -184,13 +225,13 @@ export default function App() {
                 padding: 24,
                 alignItems: 'center',
                 justifyContent: 'center',
-                backgroundColor: '#f7f7f5',
+                backgroundColor: productBackground,
               }}
             >
-              <Text style={{ fontSize: 18, fontWeight: '700', color: '#171717' }}>
+              <Text style={{ fontSize: 18, fontWeight: '700', color: productText }}>
                 Não foi possível carregar o app
               </Text>
-              <Text style={{ marginTop: 8, textAlign: 'center', color: '#77756f' }}>
+              <Text style={{ marginTop: 8, textAlign: 'center', color: productMuted }}>
                 Verifique a conexão e tente novamente.
               </Text>
             </View>
