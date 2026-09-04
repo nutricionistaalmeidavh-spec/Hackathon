@@ -45,7 +45,7 @@ Structured facts: projection, drivers, recurring patterns, ambiguous transaction
         ↓
 Cloudflare Worker
         ↓
-Gemini API
+Gemini Interactions API
         ↓
 Validated structured response
         ↓
@@ -127,17 +127,21 @@ Response shape:
 
 The suggestion never writes directly to transaction state. The user must confirm it through the existing category flow.
 
-## Model contract
+## Gemini transport and model contract
 
-The Worker will use a current Gemini model that supports structured JSON output. The model name must be centralized in one server-side constant so it can be changed without touching UI code.
+The Worker calls the stable Gemini Interactions REST API at `POST https://generativelanguage.googleapis.com/v1/interactions` using the `x-goog-api-key` header. The initial model is `gemini-3.8-flash`, centralized in one server-side constant so a future model change does not touch UI code.
 
-Prompts will contain three hard constraints:
+Both AI operations use `response_format` with `mime_type: application/json` and an explicit JSON schema. The Worker parses the model-output text and validates it again locally before exposing it through the app API.
+
+Prompts contain three hard constraints:
 
 1. Treat supplied numeric facts as authoritative and never recalculate or alter them.
 2. Do not infer facts that are not in the payload.
 3. Return only the declared JSON structure.
 
-The Worker validates the response before returning it to the browser. Invalid JSON, missing required fields, or values outside expected ranges are treated as an AI failure rather than displayed directly.
+Invalid JSON, missing required fields, values outside expected ranges, or a response that violates the public contract are treated as AI failures rather than displayed directly.
+
+The Gemini adapter is isolated from route handlers so the transport, model, or API revision can be changed without changing the public `/api/ai/*` contract.
 
 ## Data minimization and privacy
 
