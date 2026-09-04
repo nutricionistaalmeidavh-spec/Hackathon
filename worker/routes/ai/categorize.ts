@@ -10,7 +10,7 @@ const responseSchema = {
     suggestedCategory: { type: 'string', enum: [...AI_CATEGORIES] },
     confidence: { type: 'integer', minimum: 0, maximum: 100 },
     reason: { type: 'string' },
-    needsConfirmation: { type: 'boolean', enum: [true] },
+    needsConfirmation: { type: 'boolean', description: 'Must be true because AI suggestions are advisory only.' },
   },
   required: ['suggestedCategory', 'confidence', 'reason', 'needsConfirmation'],
 };
@@ -27,7 +27,7 @@ export const handleAiCategorize: RouteHandler = async (request, env) => {
     'Você sugere uma categoria para UMA movimentação financeira ambígua do app Where\'s the Money.',
     'Use somente descrição, contraparte, direção e categoria do provedor fornecidas.',
     'Não invente estabelecimento, contexto, valor, recorrência ou histórico.',
-    'A sugestão é apenas consultiva e sempre exige confirmação do usuário.',
+    'A sugestão é apenas consultiva e needsConfirmation deve ser true.',
     `CATEGORIAS_PERMITIDAS=${JSON.stringify(AI_CATEGORIES)}`,
     `MOVIMENTACAO=${JSON.stringify(input)}`,
   ].join('\n');
