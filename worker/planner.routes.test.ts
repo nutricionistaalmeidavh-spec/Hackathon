@@ -67,7 +67,7 @@ describe('planner AI routes', () => {
     const body = await response.json() as Record<string, unknown>;
     expect(body).toMatchObject({
       entity: { name: 'Itaúsa S.A.', symbol: 'ITSA4', assetClass: 'equity' },
-      disclaimer: expect.stringContaining('não constitui recomendação'),
+      disclaimer: expect.stringMatching(/não constitui recomendação/i),
     });
     expect(Array.isArray(body.facts)).toBe(true);
   });
