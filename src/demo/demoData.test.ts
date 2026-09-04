@@ -14,6 +14,8 @@ describe('judge demo dataset', () => {
     expect(processed.some(tx => (tx.recurrenceConfidence || 0) >= 76)).toBe(true);
     expect(radar.projection).toHaveLength(30);
     expect(radar.balanceKnown).toBe(true);
+    expect(radar.projection.some(point => point.balance < 0)).toBe(true);
+    expect(radar.recurring.length).toBeGreaterThanOrEqual(4);
   });
 
   it('keeps the scenario synthetic and stable for the hackathon video', () => {
