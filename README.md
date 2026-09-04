@@ -2,13 +2,50 @@
 
 **ARTISYS · RevenueCat Shipaton 2026**
 
-> Jogue seu extrato no Where's the Money e ele descobre para onde seu dinheiro realmente foi.
+> Jogue seu extrato no Where's the Money e ele descobre para onde seu dinheiro realmente foi — e o que pode acontecer com o seu caixa depois.
 
-Where's the Money é um assistente financeiro mobile-first que recebe movimentações por Open Finance ou arquivo, organiza o histórico com um motor determinístico auditável e transforma esse histórico em decisões: pendências para revisão, regras reutilizáveis e um Radar de caixa para os próximos 30 dias.
+Where's the Money é um assistente financeiro mobile-first que recebe movimentações por Open Finance ou arquivo, organiza o histórico com um motor determinístico auditável e transforma esse histórico em decisões: pendências para revisão, regras reutilizáveis, padrões recorrentes e um Radar de caixa para os próximos 30 dias.
 
-## Princípio do produto
+## Demo para jurados
 
-A classificação financeira não começa por IA. Primeiro entram evidências verificáveis: regras do usuário, descrição do estabelecimento, categoria do provedor, direção crédito/débito, recorrência, periodicidade, faixa de valor e consistência histórica. IA é uma etapa posterior para ambiguidade e explicação — nunca para inventar saldo ou movimentação.
+O projeto inclui um cenário sintético, determinístico e reproduzível que não depende de banco, Pluggy ou Gemini:
+
+```text
+https://hackathon.nutricionistaalmeidavh.workers.dev/?demo=1
+```
+
+Na tela inicial também existe **Explorar demonstração**. A demo não sobrescreve os dados reais salvos; ao sair, o estado anterior é restaurado.
+
+O roteiro demonstra:
+
+1. Inbox com classificações determinísticas;
+2. uma movimentação ambígua para revisão;
+3. regras reutilizáveis;
+4. recorrências com confiança e amostras;
+5. Radar de 30 dias com primeiro dia de risco e maiores drivers;
+6. Gemini opcional explicando apenas fatos que o motor já calculou.
+
+## Princípio do produto: evidência antes de IA
+
+A classificação financeira não começa por IA. Primeiro entram evidências verificáveis: regras do usuário, descrição do estabelecimento, categoria do provedor, direção crédito/débito, recorrência, periodicidade, faixa de valor e consistência histórica.
+
+Gemini é uma camada posterior e opcional:
+
+```text
+Open Finance / arquivo
+        ↓
+motor determinístico
+        ↓
+Inbox + recorrências + Radar
+        ↓
+fatos estruturados e mínimos
+        ↓
+Gemini (explicação / sugestão)
+        ↓
+usuário confirma quando houver decisão
+```
+
+A IA **não calcula saldo, não cria movimentação, não inventa recorrência e não confirma categoria automaticamente**.
 
 ## Estado atual
 
@@ -18,9 +55,12 @@ A classificação financeira não começa por IA. Primeiro entram evidências ve
 - Classificação determinística de categorias comuns.
 - Regras manuais reutilizáveis.
 - Detecção de recorrência semanal, quinzenal e mensal por estabelecimento + direção + intervalo + valor.
-- Radar de caixa de 30 dias sem IA.
+- Radar hero de 30 dias com primeiro dia negativo, menor saldo, saldo final e principais drivers.
+- Modo Demo com dados 100% sintéticos e sem persistência sobre dados reais.
+- Gemini Interactions API via Worker para explicação do Radar e sugestão de categoria ambígua.
+- Fallback completo quando Gemini não está configurado.
 - Proteção contra datas malformadas.
-- Persistência local para o protótipo.
+- Persistência local para o protótipo real.
 - Deploy preparado para Cloudflare Workers + Static Assets com GitHub como fonte oficial.
 - Camada mobile Expo em `apps/mobile`, com RevenueCat e OneSignal nativos.
 
@@ -31,17 +71,25 @@ npm install
 npm run dev
 ```
 
-Isso cobre interface, importação de arquivos, motor e Radar.
+Isso cobre interface, importação, motor, Demo e Radar. Os botões Gemini precisam do Worker.
 
 ## Rodar o app completo localmente
 
-Crie `.dev.vars` com as credenciais da Pluggy e execute:
+Crie `.dev.vars` apenas com os secrets que pretende testar:
+
+```dotenv
+PLUGGY_CLIENT_ID=""
+PLUGGY_CLIENT_SECRET=""
+GEMINI_API_KEY=""
+```
+
+Depois:
 
 ```bash
 npm run dev:worker
 ```
 
-O Wrangler sobe o Worker, as rotas Open Finance e os assets compilados em `dist/`.
+A chave Gemini nunca entra no bundle React/Expo. O navegador chama apenas `/api/ai/*`.
 
 ## Build web/Worker
 
@@ -49,9 +97,10 @@ O Wrangler sobe o Worker, as rotas Open Finance e os assets compilados em `dist/
 npm test
 npm run build
 npx wrangler deploy --dry-run
+npx wrangler deploy --assets=./dist --name=hackathon --dry-run
 ```
 
-O build verifica TypeScript do frontend, Worker e helper server-side.
+A suíte cobre o motor financeiro, dataset demo, análise determinística do Radar, roteamento Worker e contratos/fallbacks da camada Gemini.
 
 ## Mobile Expo
 
@@ -117,12 +166,15 @@ Configuração canônica no Git:
 - API Worker-first: `/api/*`
 - SPA fallback: `single-page-application`
 
-Os secrets de runtime são:
+Secrets privados de runtime:
 
 ```text
 PLUGGY_CLIENT_ID
 PLUGGY_CLIENT_SECRET
+GEMINI_API_KEY
 ```
+
+`GEMINI_API_KEY` é opcional. Sem ela, todo o produto determinístico continua funcional.
 
 Cada push em `main` gera uma nova build no projeto conectado. O repositório também suporta deploy manual com:
 
@@ -145,13 +197,15 @@ A camada Expo nativa pode ser compilada no EAS sem exigir que o código tenha si
 - [Arquitetura](docs/ARCHITECTURE.md)
 - [Decisões técnicas](docs/DECISIONS.md)
 - [ENV e secrets](docs/ENVIRONMENT.md)
-- [Hackathon](docs/HACKATHON.md)
+- [Roteiro do hackathon](docs/HACKATHON.md)
+- [Design da camada Gemini](docs/superpowers/specs/2026-09-04-gemini-financial-explainer-design.md)
+- [Plano Demo + Radar + Gemini](docs/superpowers/plans/2026-09-04-demo-radar-gemini.md)
 - [Mobile / emulador](docs/MOBILE-BUILD.md)
 - [Build log](BUILDLOG.md)
 
 ## Segurança
 
-Nunca faça commit de `.env`, `.env.local`, `.dev.vars`, Client Secret, service account Firebase, chave APNs, keystore Android ou outras chaves privadas. O repositório contém apenas nomes de variáveis de exemplo e IDs públicos de projeto.
+Nunca faça commit de `.env`, `.env.local`, `.dev.vars`, Client Secret, `GEMINI_API_KEY`, service account Firebase, chave APNs, keystore Android ou outras chaves privadas. A camada Gemini limita e valida os payloads antes da chamada externa e valida a resposta antes de renderizá-la.
 
 ## Licença
 
