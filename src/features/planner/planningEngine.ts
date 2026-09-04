@@ -37,6 +37,7 @@ export type ConfirmedFact =
   | { type: 'adjustment'; adjustment: Omit<SpendingAdjustment, 'id'|'confirmed'> & { id?: string } }
   | { type: 'stage'; stage: PlanningStage };
 
+const stages: PlanningStage[] = ['snapshot','goals','constraints','adjustments','funding','market-context','scenarios','confirm','active-plan'];
 const starterBuckets: PlanBucket[] = [
   { id: 'essential', label: 'Essenciais', group: 'essential', targetPercent: 50, userDefined: false },
   { id: 'flexible', label: 'Flexíveis', group: 'flexible', targetPercent: 30, userDefined: false },
@@ -52,6 +53,19 @@ export function createPlanningState(): PlanningState {
     buckets: starterBuckets.map(bucket => ({ ...bucket })),
     adjustments: [],
     messages: [{ id: 'welcome', role: 'assistant', text: 'Vou usar seus dados para organizar prioridades e fazer uma pergunta de cada vez. Nada ambíguo entra no plano sem sua confirmação.' }],
+  };
+}
+
+export function ensurePlanningState(value: unknown): PlanningState {
+  const fallback = createPlanningState();
+  if (!value || typeof value !== 'object') return fallback;
+  const candidate = value as Partial<PlanningState>;
+  return {
+    stage: candidate.stage && stages.includes(candidate.stage) ? candidate.stage : fallback.stage,
+    goals: Array.isArray(candidate.goals) ? candidate.goals : fallback.goals,
+    buckets: Array.isArray(candidate.buckets) && candidate.buckets.length ? candidate.buckets : fallback.buckets,
+    adjustments: Array.isArray(candidate.adjustments) ? candidate.adjustments : fallback.adjustments,
+    messages: Array.isArray(candidate.messages) && candidate.messages.length ? candidate.messages : fallback.messages,
   };
 }
 

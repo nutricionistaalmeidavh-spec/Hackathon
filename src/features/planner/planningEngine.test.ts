@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyConfirmedFact, createPlanningState, validatePlanTargets } from './planningEngine';
+import { applyConfirmedFact, createPlanningState, ensurePlanningState, validatePlanTargets } from './planningEngine';
 
 describe('planningEngine', () => {
   it('commits only explicitly confirmed facts into structured planning state', () => {
@@ -27,5 +27,10 @@ describe('planningEngine', () => {
       { id: 'a', label: 'A', group: 'custom', targetPercent: 60, userDefined: true },
       { id: 'b', label: 'B', group: 'custom', targetPercent: 50, userDefined: true },
     ])).toEqual({ totalPercent: 110, valid: false });
+  });
+
+  it('loads old saved state without a planning payload safely', () => {
+    expect(ensurePlanningState(undefined)).toEqual(createPlanningState());
+    expect(ensurePlanningState({ goals: [] }).buckets.map(bucket => bucket.targetPercent)).toEqual([50, 30, 20]);
   });
 });
