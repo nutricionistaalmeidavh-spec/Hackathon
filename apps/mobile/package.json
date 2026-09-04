@@ -18,7 +18,7 @@
     "expo-status-bar": "~57.0.1",
     "onesignal-expo-plugin": "2.7.1",
     "react": "19.2.3",
-    "react-native": "0.87.0",
+    "react-native": "0.86.3",
     "react-native-onesignal": "5.5.9",
     "react-native-purchases": "10.8.1",
     "react-native-purchases-ui": "10.8.1",
