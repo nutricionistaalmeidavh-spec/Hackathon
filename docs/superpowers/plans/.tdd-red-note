@@ -1,1 +1,0 @@
-The following commit intentionally contains failing tests before production implementation so CI can verify the TDD red phase.
