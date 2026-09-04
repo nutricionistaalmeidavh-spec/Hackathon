@@ -71,4 +71,35 @@ describe('planner AI routes', () => {
     });
     expect(Array.isArray(body.facts)).toBe(true);
   });
+
+  it('rejects unsafe source URL schemes returned by market research', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
+      status: 'completed',
+      steps: [{
+        type: 'model_output',
+        content: [{
+          type: 'text',
+          text: JSON.stringify({
+            entity: { name: 'Itaúsa S.A.', symbol: 'ITSA4', assetClass: 'equity', exchange: 'B3', currency: 'BRL' },
+            facts: [{
+              key: 'source',
+              label: 'Fonte',
+              value: 'conteúdo',
+              asOf: '2026-09-04',
+              sourceUrl: 'javascript:alert(1)',
+              sourceTitle: 'Fonte inválida',
+            }],
+            summary: 'Resumo factual.',
+          }),
+        }],
+      }],
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } }))));
+
+    const response = await worker.fetch(new Request('https://example.com/api/ai/market-research', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: 'Itaúsa' }),
+    }), makeEnv({ GEMINI_API_KEY: 'test-key' }));
+
+    expect(response.status).toBe(502);
+    expect(await response.json()).toMatchObject({ code: 'AI_INVALID_RESPONSE' });
+  });
 });
