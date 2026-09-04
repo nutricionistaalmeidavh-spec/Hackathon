@@ -1,6 +1,8 @@
 import { jsonResponse } from '../server/pluggy';
 import { handleAiCategorize } from './routes/ai/categorize';
 import { handleAiExplain } from './routes/ai/explain';
+import { handleAiMarketResearch } from './routes/ai/market-research';
+import { handleAiPlannerTurn } from './routes/ai/planner-turn';
 import { handleConnectToken } from './routes/open-finance/connect-token';
 import { handleData } from './routes/open-finance/data';
 import { handleStatus } from './routes/open-finance/status';
@@ -19,6 +21,8 @@ const routes: Record<string, RouteDefinition> = {
   '/api/open-finance/webhook': { method: 'POST', handler: handleWebhook },
   '/api/ai/explain': { method: 'POST', handler: handleAiExplain },
   '/api/ai/categorize': { method: 'POST', handler: handleAiCategorize },
+  '/api/ai/planner-turn': { method: 'POST', handler: handleAiPlannerTurn },
+  '/api/ai/market-research': { method: 'POST', handler: handleAiMarketResearch },
 };
 
 export default {

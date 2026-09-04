@@ -7,7 +7,6 @@ describe('judge demo dataset', () => {
     const demo = createDemoState();
     const processed = applyPatternIntelligence(demo.txs, demo.rules);
     const radar = buildRadar(processed, demo.accounts, demo.rules);
-
     expect(demo.txs.length).toBeGreaterThanOrEqual(20);
     expect(demo.accounts.length).toBeGreaterThan(0);
     expect(processed.some(tx => tx.status === 'unresolved' || tx.status === 'needs_review')).toBe(true);
@@ -21,8 +20,10 @@ describe('judge demo dataset', () => {
   it('keeps the scenario synthetic and stable for the hackathon video', () => {
     const first = createDemoState();
     const second = createDemoState();
-
     expect(second).toEqual(first);
     expect(first.txs.some(tx => /PIX M J SILVA/i.test(tx.description))).toBe(true);
+    expect(first.planning.goals.map(goal => goal.kind)).toEqual(expect.arrayContaining(['retirement', 'purchase', 'travel']));
+    expect(first.planning.adjustments.length).toBeGreaterThan(0);
+    expect(first.planning.messages.some(message => /R\$ 950 por mês/i.test(message.text))).toBe(true);
   });
 });
