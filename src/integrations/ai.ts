@@ -26,6 +26,43 @@ export type AiCategorySuggestion = {
   needsConfirmation: true;
 };
 
+export type AiPlannerTurnInput = {
+  stage: 'snapshot'|'goals'|'constraints'|'adjustments'|'funding'|'market-context'|'scenarios'|'confirm'|'active-plan';
+  snapshot: {
+    incomeAmount: number;
+    essentialPercent: number | null;
+    flexiblePercent: number | null;
+    futurePercent: number | null;
+    uncategorizedPercent: number | null;
+  };
+  goals: Array<Record<string, unknown>>;
+  adjustments: Array<Record<string, unknown>>;
+  recentMessages: Array<{ role: 'user'|'assistant'; text: string }>;
+};
+
+export type AiPlannerCandidateFact = {
+  type: string;
+  label: string;
+  value?: string | number;
+  needsConfirmation: true;
+};
+
+export type AiPlannerTurn = {
+  reply: string;
+  nextStage: AiPlannerTurnInput['stage'];
+  candidateFacts: AiPlannerCandidateFact[];
+  quickReplies: string[];
+};
+
+export type AiMarketResearchInput = { query: string; purpose?: string };
+export type AiMarketResearch = {
+  entity: { name: string; symbol?: string; assetClass: string; exchange?: string; currency?: string };
+  facts: Array<{ key: string; label: string; value: string; asOf?: string; sourceUrl?: string; sourceTitle?: string }>;
+  summary: string;
+  fetchedAt: string;
+  disclaimer: string;
+};
+
 export class AiFeatureError extends Error {
   constructor(public code: string, message: string) {
     super(message);
@@ -42,7 +79,7 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
   if (!response.ok) {
     throw new AiFeatureError(
       data.code || 'AI_REQUEST_FAILED',
-      data.code === 'AI_NOT_CONFIGURED' ? 'A explicação por IA ainda não está configurada neste ambiente.' : data.error || 'A IA está temporariamente indisponível.',
+      data.code === 'AI_NOT_CONFIGURED' ? 'Os recursos de IA ainda não estão configurados neste ambiente.' : data.error || 'A IA está temporariamente indisponível.',
     );
   }
   return data as T;
@@ -50,3 +87,5 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
 
 export const explainRadar = (input: AiExplainInput) => postJson<AiRadarExplanation>('/api/ai/explain', input);
 export const suggestCategory = (input: AiCategoryInput) => postJson<AiCategorySuggestion>('/api/ai/categorize', input);
+export const plannerTurn = (input: AiPlannerTurnInput) => postJson<AiPlannerTurn>('/api/ai/planner-turn', input);
+export const researchMarket = (input: AiMarketResearchInput) => postJson<AiMarketResearch>('/api/ai/market-research', input);
