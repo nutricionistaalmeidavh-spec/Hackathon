@@ -35,6 +35,17 @@ const isRecord = (value: unknown): value is Record<string, unknown> => Boolean(v
 const bounded = (value: unknown, max: number, allowEmpty = false) => typeof value === 'string' && value.length <= max && (allowEmpty || value.trim().length > 0);
 const finiteNumber = (value: unknown) => typeof value === 'number' && Number.isFinite(value);
 const nullablePercent = (value: unknown) => value === null || (finiteNumber(value) && Number(value) >= 0 && Number(value) <= 1000);
+const safeHttpUrl = (value: unknown) => {
+  if (!bounded(value, 500, true)) return false;
+  const raw = String(value).trim();
+  if (!raw) return true;
+  try {
+    const url = new URL(raw);
+    return url.protocol === 'http:' || url.protocol === 'https:';
+  } catch {
+    return false;
+  }
+};
 
 export function parsePlannerTurnRequest(value: unknown): PlannerTurnRequest | null {
   if (!isRecord(value) || !PLANNING_STAGES.includes(value.stage as PlanningStage) || !isRecord(value.snapshot)) return null;
@@ -91,7 +102,7 @@ export function parseMarketResearchResponse(value: unknown): Omit<MarketResearch
   for (const fact of value.facts) {
     if (!isRecord(fact) || !bounded(fact.key, 80) || !bounded(fact.label, 160) || !bounded(fact.value, 500)) return null;
     if (fact.asOf !== undefined && !bounded(fact.asOf, 40, true)) return null;
-    if (fact.sourceUrl !== undefined && !bounded(fact.sourceUrl, 500, true)) return null;
+    if (fact.sourceUrl !== undefined && !safeHttpUrl(fact.sourceUrl)) return null;
     if (fact.sourceTitle !== undefined && !bounded(fact.sourceTitle, 300, true)) return null;
     facts.push({ key: String(fact.key), label: String(fact.label), value: String(fact.value), ...(fact.asOf === undefined ? {} : { asOf: String(fact.asOf) }), ...(fact.sourceUrl === undefined ? {} : { sourceUrl: String(fact.sourceUrl) }), ...(fact.sourceTitle === undefined ? {} : { sourceTitle: String(fact.sourceTitle) }) });
   }
