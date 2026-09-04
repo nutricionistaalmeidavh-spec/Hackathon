@@ -5,6 +5,7 @@ export type AssetFetcher = {
 };
 
 export type Env = PluggyEnv & {
+  GEMINI_API_KEY?: string;
   ASSETS: AssetFetcher;
 };
 
