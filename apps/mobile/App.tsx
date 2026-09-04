@@ -30,7 +30,7 @@ export default function App() {
 
   useEffect(() => {
     let mounted = true;
-    let unsubscribeRevenueCat = () => undefined;
+    let unsubscribeRevenueCat: () => void = () => {};
 
     void (async () => {
       const oneSignalReady = await initializeOneSignal(mobileConfig.oneSignalAppId);
