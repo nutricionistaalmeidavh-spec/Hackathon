@@ -1,0 +1,1 @@
+Use pull request CI to verify these tests fail because the bridge/access production modules are absent.
