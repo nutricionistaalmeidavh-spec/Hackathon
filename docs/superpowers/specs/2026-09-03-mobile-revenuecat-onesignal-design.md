@@ -1,7 +1,7 @@
 # Where's the Money — Mobile Expo + RevenueCat + OneSignal
 
 Data: 2026-09-03
-Status: design aprovado em conversa; aguardando revisão do arquivo antes da implementação.
+Status: design aprovado em conversa e em implementação.
 Branch: feat/mobile-revenuecat-onesignal
 
 ## Objetivo
