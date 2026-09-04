@@ -45,3 +45,11 @@ export function deriveAccess(
     radarDays: FREE_RADAR_DAYS,
   };
 }
+
+export function canCreateRule(access: AccessPolicy, activeRuleCount: number): boolean {
+  return access.ruleLimit === null || activeRuleCount < access.ruleLimit;
+}
+
+export function visibleRadarPoints<T>(points: T[], access: AccessPolicy): T[] {
+  return points.slice(0, access.radarDays);
+}
