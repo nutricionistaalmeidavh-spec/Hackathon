@@ -93,7 +93,7 @@ describe('planner AI routes', () => {
           }),
         }],
       }],
-    }), { status: 200, headers: { 'Content-Type': 'application/json' } }))));
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } })));
 
     const response = await worker.fetch(new Request('https://example.com/api/ai/market-research', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: 'Itaúsa' }),
