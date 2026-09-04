@@ -6,7 +6,7 @@ export class AiInvalidResponseError extends Error {}
 
 type GeminiStep = {
   type?: string;
-  content?: Array<{ type?: string; text?: string }>;
+  content?: Array<{ type?: string; text?: string; annotations?: unknown[] }>;
 };
 
 type GeminiInteraction = {
@@ -34,6 +34,7 @@ export async function callGeminiStructured(
   apiKey: string,
   input: string,
   schema: Record<string, unknown>,
+  options: { googleSearch?: boolean; maxOutputTokens?: number } = {},
 ): Promise<unknown> {
   let response: Response;
   try {
@@ -47,7 +48,8 @@ export async function callGeminiStructured(
         model: GEMINI_MODEL,
         store: false,
         input,
-        generation_config: { temperature: 0.2, max_output_tokens: 700 },
+        ...(options.googleSearch ? { tools: [{ type: 'google_search' }] } : {}),
+        generation_config: { temperature: 0.2, max_output_tokens: options.maxOutputTokens || 900 },
         response_format: {
           type: 'text',
           mime_type: 'application/json',
