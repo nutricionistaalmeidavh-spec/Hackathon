@@ -18,7 +18,6 @@ import {
   Sparkles,
   Target,
   WalletCards,
-  X,
 } from 'lucide-react';
 import { analyzeBudgetHealth } from './core/budgetHealth';
 import { applyPatternIntelligence, buildRadar, safeDate } from './core/financeEngine';
@@ -27,6 +26,7 @@ import { createDemoState } from './demo/demoData';
 import { PlannerPage } from './features/planner/PlannerPage';
 import { createPlanningState, ensurePlanningState, type PlanningState } from './features/planner/planningEngine';
 import { RadarPage } from './features/radar/RadarPage';
+import { FeedbackToast } from './stability/FeedbackToast';
 import { ContextualUpgrade } from './journey/ContextualUpgrade';
 import { DemoProgress } from './journey/DemoProgress';
 import { JourneyCard } from './journey/JourneyCard';
@@ -142,7 +142,7 @@ export default function App() {
     hasRadarAttention: Boolean(fullInsight.firstNegative),
   });
   const homeJourneyStage = demoMode && !demoTouchedReview ? 'review' : journeyStage;
-  const demoStep = deriveDemoStep({ touchedReview: demoTouchedReview, touchedWatch: demoTouchedWatch, touchedPlan: demoTouchedPlan });
+  const demoStep = deriveDemoStep({ touchedReview: demoTouchedReview && attention.length === 0, touchedWatch: demoTouchedWatch, touchedPlan: demoTouchedPlan });
 
   function openTab(next: Tab) {
     setTab(next);
@@ -178,6 +178,23 @@ export default function App() {
     setDemoTouchedPlan(false);
     setUpgradeContext(null);
     setMessage('Demo Pro carregada com dados e plano sintéticos. Seus dados reais e sua assinatura não foram alterados.');
+  }
+
+  function resetDemo() {
+    const demo = createDemoState();
+    setRules(demo.rules);
+    setAccounts(demo.accounts);
+    setTxs(applyPatternIntelligence(demo.txs, demo.rules));
+    setPlanning(demo.planning);
+    setSelected(null);
+    setFilter('attention');
+    setTab('today');
+    setRadarSeenThisSession(false);
+    setDemoTouchedReview(false);
+    setDemoTouchedWatch(false);
+    setDemoTouchedPlan(false);
+    setUpgradeContext(null);
+    setMessage('Demo reiniciada com o cenário sintético original. Seus dados reais continuam preservados.');
   }
 
   function exitDemo() {
@@ -272,6 +289,8 @@ export default function App() {
       setFilter('attention');
       openTab('inbox');
       setMessage(`${incoming.length} movimentações importadas.`);
+    } catch {
+      setMessage('Não conseguimos ler esse arquivo. Confira o formato e tente novamente.');
     } finally {
       setBusy(false);
       if (fileRef.current) fileRef.current.value = '';
@@ -330,9 +349,9 @@ export default function App() {
       <div className="brand"><span>ARTISYS</span><b>Where's the Money</b></div>
       {demoMode && <div className="demo-header"><span className="demo-badge"><Crown size={11}/>Demo Pro</span><button className="header-action" onClick={exitDemo}><LogOut size={14}/>Sair</button></div>}
     </header>
-    {message && <div className="toast"><span className="ok"><Check size={14}/></span><p>{message}</p><button aria-label="Fechar" onClick={() => setMessage('')}><X size={15}/></button></div>}
+    <FeedbackToast message={message} onClose={() => setMessage('')}/>
     <main className="main page-stack">
-      {demoMode && <DemoProgress step={demoStep} onNext={demoStep === 1 ? () => { setFilter('attention'); openTab('inbox'); } : demoStep === 2 ? () => openTab('radar') : demoStep === 3 ? () => openTab('planner') : undefined} />}
+      {demoMode && <DemoProgress step={demoStep} onRestart={resetDemo} onNext={demoStep === 1 ? () => { setFilter('attention'); openTab('inbox'); } : demoStep === 2 ? () => openTab('radar') : demoStep === 3 ? () => openTab('planner') : undefined} />}
       {tab === 'today' && <>
         <section className="heading"><span>{demoMode ? 'Demo Pro · dados sintéticos' : 'Hoje'}</span><h1>{txs.length ? 'O que precisa da sua atenção agora.' : 'Descubra para onde seu dinheiro foi.'}</h1><p>{txs.length ? `${attention.length} para revisar · ${automated.length} organizadas automaticamente · ${resolved.length} confirmadas` : 'Comece pelo extrato gratuito. Open Finance automático, Radar completo e planejamento avançado ficam no Pro.'}</p></section>
         {!txs.length ? <>
