@@ -1,0 +1,32 @@
+name: Apply final App stabilization
+
+on:
+  push:
+    branches:
+      - chore/hackathon-final-steps-1-2
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.event.head_commit.message == 'chore: run final app stabilization'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node scripts/apply-final-app-stability.mjs
+      - run: git diff --check
+      - name: Commit deterministic patch and remove temporary applicator
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm scripts/apply-final-app-stability.mjs .github/workflows/apply-final-app-stability.yml
+          git add src/App.tsx
+          git diff --cached --check
+          git commit -m "feat: stabilize final app flow"
+          git push origin HEAD:${GITHUB_REF_NAME}
