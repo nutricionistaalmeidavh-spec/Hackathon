@@ -69,7 +69,7 @@ Secondary areas remain reachable through bottom navigation.
 
 ## Journey state model
 
-Phase 2 introduces a deterministic presentation-level journey state derived from existing app state. It does not become a second source of truth.
+Phase 2 introduces a deterministic presentation-level journey state derived from existing app state plus one non-persisted session hint that records whether Radar has already been visited in the current session. It does not become a second source of financial truth.
 
 Suggested type:
 
@@ -82,7 +82,23 @@ type JourneyStage =
   | 'active-plan';
 ```
 
-Derivation rules:
+Supporting session state:
+
+```ts
+type JourneySession = {
+  radarSeenThisSession: boolean;
+};
+```
+
+`JourneySession` is UI-only, resets on page/app reload and is never written to `wtm-portable`.
+
+Derivation rules are evaluated in this exact precedence order:
+
+1. `empty`
+2. `review`
+3. `active-plan`
+4. `radar-ready`
+5. `plan-ready`
 
 ### `empty`
 
@@ -116,13 +132,28 @@ Supporting information:
 - resolved count;
 - automatically categorized/candidate count.
 
+### `active-plan`
+
+Conditions:
+
+- transactions exist;
+- Inbox does not need immediate review;
+- structured planning state contains at least one confirmed meaningful fact, such as a confirmed goal or confirmed adjustment.
+
+Primary Home action:
+
+- continue/review plan or inspect Radar according to current deterministic risk/attention state.
+
+The exact CTA can be derived from existing Radar insight without changing underlying calculation behavior.
+
 ### `radar-ready`
 
 Conditions:
 
 - transactions exist;
 - no unresolved/review items remain;
-- the current planning state has no materially confirmed/active objective yet.
+- no meaningful active plan exists;
+- `radarSeenThisSession === false`.
 
 Primary action:
 
@@ -132,32 +163,22 @@ Message:
 
 - financial history is organized enough to inspect what comes next.
 
+Opening Radar sets `radarSeenThisSession = true` for the current UI session only.
+
 ### `plan-ready`
 
 Conditions:
 
 - transactions exist;
 - Inbox does not need immediate review;
-- Radar is available;
-- planning is still at an initial/light state.
+- no meaningful active plan exists;
+- `radarSeenThisSession === true`.
 
 Primary action:
 
 - open Planner.
 
-This stage may be surfaced after the user has entered Radar during the session, or by a Radar CTA. It must not require a new persisted flag unless implementation evidence shows that a session-level hint is necessary.
-
-### `active-plan`
-
-Conditions:
-
-- structured planning state contains confirmed goals, adjustments, or other meaningful plan data.
-
-Primary Home action:
-
-- continue/review plan or inspect Radar according to current risk/attention state.
-
-The exact CTA can be derived from deterministic Radar insight without changing underlying calculation behavior.
+This makes the sequence explicit without storing tutorial progress or changing financial persistence.
 
 ## Today / Home
 
@@ -201,7 +222,7 @@ If pending review exists:
 [Revisar agora]
 ```
 
-If review is complete:
+If review is complete and Radar has not yet been visited this session:
 
 ```text
 Seu dinheiro está organizado.
@@ -210,7 +231,7 @@ Veja o que vem pela frente.
 [Abrir Radar]
 ```
 
-If planning is the next useful step:
+If Radar has already been visited and there is no active plan:
 
 ```text
 Agora transforme essa leitura em um plano.
@@ -458,7 +479,7 @@ Recommended focused units:
 
 Pure deterministic helpers:
 
-- derive current `JourneyStage` from existing transaction/planning/access/insight state;
+- derive current `JourneyStage` from existing transaction/planning/session/access/insight state;
 - choose next primary action metadata;
 - no React dependency;
 - directly unit-testable.
@@ -501,6 +522,8 @@ Existing `RadarPage` and `PlannerPage` should be changed only where required for
 
 ```text
 Existing transactions/rules/accounts/planning/access/Radar insight
+                          +
+              non-persisted JourneySession
                           ↓
                   journeyState.ts
                           ↓
@@ -576,10 +599,11 @@ Cover at minimum:
 
 1. no transactions → `empty`;
 2. unresolved transaction exists → `review`;
-3. all transactions resolved + no meaningful plan → Radar/plan continuation state;
-4. meaningful structured plan → `active-plan`;
-5. demo state does not change entitlement derivation;
-6. risk vs healthy insight changes CTA copy/action only, not engine data.
+3. all transactions resolved + no meaningful plan + Radar unseen → `radar-ready`;
+4. all transactions resolved + no meaningful plan + Radar seen this session → `plan-ready`;
+5. meaningful structured plan → `active-plan` regardless of Radar session hint;
+6. demo state does not change entitlement derivation;
+7. risk vs healthy insight changes CTA copy/action only, not engine data.
 
 ### Inbox continuation tests
 
@@ -647,9 +671,10 @@ Phase 2 is complete only when all of the following are true:
 12. Free/Pro attempts explain value in context before delegating to existing subscription behavior.
 13. Demo Pro exposes a non-blocking four-step judging path.
 14. Bottom navigation remains fully usable.
-15. Finance engine, Gemini, Pluggy, RevenueCat, Worker and persistence contracts remain unchanged unless a separately reviewed defect requires otherwise.
-16. Web/Worker CI and mobile validation pass.
-17. Cloudflare Worker remains the only production web deployment target.
+15. Finance engine, Gemini, Pluggy, RevenueCat, Worker and persisted financial contracts remain unchanged unless a separately reviewed defect requires otherwise.
+16. `JourneySession` remains non-persisted and cannot alter financial data or entitlement.
+17. Web/Worker CI and mobile validation pass.
+18. Cloudflare Worker remains the only production web deployment target.
 
 ## Expected implementation surface
 
