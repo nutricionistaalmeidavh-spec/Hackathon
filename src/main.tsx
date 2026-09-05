@@ -6,6 +6,7 @@ import './hackathon.css';
 import './premium.css';
 import './features/radar/radar.css';
 import './features/planner/planner.css';
+import './journey.css';
 import './motion-kit.css';
 
 createRoot(document.getElementById('root')!).render(<StrictMode><App /></StrictMode>);

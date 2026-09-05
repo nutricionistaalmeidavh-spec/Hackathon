@@ -50,7 +50,11 @@ export function RadarPage({ startingBalance, projection, insight, budgetHealth, 
   if (watchOpen && hasProAccess) return <WatchPage insight={insight} essentialPercent={budgetHealth.essential.percent} onBack={() => setWatchOpen(false)} onOpenPlan={onOpenPlan}/>;
 
   const firstNegativeIndex = insight.firstNegative ? projection.findIndex(point => point.date === insight.firstNegative?.date) : -1;
-  const watchTitle = firstNegativeIndex >= 0 ? `Em ${firstNegativeIndex + 1} ${firstNegativeIndex === 0 ? 'dia' : 'dias'}` : 'Tudo sob controle';
+  const daysUntilNegative = firstNegativeIndex >= 0 ? firstNegativeIndex + 1 : null;
+  const watchTitle = daysUntilNegative ? `Em ${daysUntilNegative} ${daysUntilNegative === 1 ? 'dia' : 'dias'}` : 'Tudo sob controle';
+  const journeyMessage = daysUntilNegative
+    ? `Seu saldo pode ficar negativo em ${daysUntilNegative} ${daysUntilNegative === 1 ? 'dia' : 'dias'}.`
+    : `Nenhum ponto crítico nos próximos ${projection.length} dias.`;
   const healthItems = [
     { label: 'Essenciais', value: budgetHealth.essential.percent, reference: 'referência ≤ 50%' },
     { label: 'Flexíveis', value: budgetHealth.flexible.percent, reference: 'referência ≤ 30%' },
@@ -59,11 +63,12 @@ export function RadarPage({ startingBalance, projection, insight, budgetHealth, 
 
   return <section className="radar-feature">
     <header className="radar-feature-heading"><div className="radar-feature-brand"><RadarMotion/><div><span>Radar</span><h1>Visão à frente. Decisões melhores.</h1></div></div><span className="radar-window">{projection.length} dias</span></header>
+    <article className={`radar-journey-summary ${daysUntilNegative ? 'risk' : 'healthy'}`}><small>Leitura do Radar</small><strong>{journeyMessage}</strong><span>{daysUntilNegative ? 'Entender o que está pressionando ajuda a decidir o que ajustar antes.' : 'A projeção continua sendo uma leitura do histórico e das recorrências conhecidas.'}</span></article>
     <div className="radar-summary-grid">
       <article className="radar-balance-card"><span>Saldo atual</span><strong>{brl(startingBalance)}</strong><small>base da projeção</small></article>
-      <button className="radar-watch-card" onClick={hasProAccess ? () => setWatchOpen(true) : onUpgrade}><div><span><Eye size={15}/>Fique de olho</span><strong>{hasProAccess ? watchTitle : 'Prévia disponível'}</strong><small>{hasProAccess ? 'Toque para entender os detalhes' : 'O Pro mostra o ponto de atenção completo'}</small></div>{hasProAccess ? <ChevronRight size={19}/> : <LockKeyhole size={18}/>}</button>
+      <button className="radar-watch-card" onClick={hasProAccess ? () => setWatchOpen(true) : onUpgrade}><div><span><Eye size={15}/>Fique de olho</span><strong>{hasProAccess ? watchTitle : 'Prévia disponível'}</strong><small>{hasProAccess ? (daysUntilNegative ? 'Entender o que está pressionando' : 'Toque para entender os detalhes') : 'O Pro mostra o ponto de atenção completo'}</small></div>{hasProAccess ? <ChevronRight size={19}/> : <LockKeyhole size={18}/>}</button>
     </div>
     <article className="radar-chart-card"><div className="radar-card-title"><div><span>Projeção de saldo</span><h2>Próximos {projection.length} dias</h2></div><small>A luz percorre a projeção; os números não se movem.</small></div><RadarChart points={projection}/></article>
-    <button className="radar-why" onClick={onOpenPlan}><div className="radar-why-title"><Sparkles size={18}/><div><span>Por que isso acontece</span><strong>Sua distribuição hoje</strong></div></div><div className="radar-budget-preview">{healthItems.map(item => <div key={item.label}><span>{item.label}</span><b>{item.value === null ? '—' : `${item.value}%`}</b><small>{item.reference}</small></div>)}</div><p>{budgetHealth.status === 'ready' ? 'Uma referência ajuda a começar; seu plano pode ser personalizado na conversa.' : 'Revise suas entradas e categorias para construir uma leitura confiável.'}</p><span className="radar-why-cta">Entender e organizar <ChevronRight size={16}/></span></button>
+    <button className="radar-why" onClick={onOpenPlan}><div className="radar-why-title"><Sparkles size={18}/><div><span>Por que isso acontece</span><strong>Sua distribuição hoje</strong></div></div><div className="radar-budget-preview">{healthItems.map(item => <div key={item.label}><span>{item.label}</span><b>{item.value === null ? '—' : `${item.value}%`}</b><small>{item.reference}</small></div>)}</div><p>{budgetHealth.status === 'ready' ? 'Uma referência ajuda a começar; seu plano pode ser personalizado na conversa.' : 'Revise suas entradas e categorias para construir uma leitura confiável.'}</p><span className="radar-why-cta">Organizar meu plano <ChevronRight size={16}/></span></button>
   </section>;
 }

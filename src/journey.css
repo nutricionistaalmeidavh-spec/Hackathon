@@ -1,0 +1,471 @@
+/* Phase 3 — guided journey + demo polish.
+   Loaded after feature styles and before MotionKit so layout/visual hierarchy
+   stays separate from interaction motion. */
+
+:root{
+  --journey-gap:14px;
+  --journey-radius:18px;
+  --journey-panel:linear-gradient(145deg,rgba(255,255,255,.072),rgba(255,255,255,.026));
+  --journey-panel-strong:linear-gradient(145deg,rgba(124,140,255,.12),rgba(255,255,255,.032));
+}
+
+.shell{
+  padding-bottom:calc(92px + env(safe-area-inset-bottom));
+}
+
+.main{
+  scroll-padding-bottom:calc(108px + env(safe-area-inset-bottom));
+}
+
+.primary,
+.secondary,
+.text-button,
+.dropzone,
+.tx-row,
+.segments button,
+.bottom-nav button,
+.header-action,
+.icon-button,
+.reset-button,
+.planner-disclosure>summary,
+.contextual-upgrade button,
+.demo-progress button{
+  min-height:44px;
+}
+
+/* Guided home */
+.journey-card{
+  position:relative;
+  overflow:hidden;
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  align-items:end;
+  gap:18px;
+  border-color:rgba(124,140,255,.26);
+  background:radial-gradient(circle at 100% 0,rgba(124,140,255,.14),transparent 42%),var(--journey-panel);
+  box-shadow:0 22px 58px rgba(0,0,0,.18);
+}
+.journey-card:after{
+  content:'';
+  position:absolute;
+  width:170px;
+  height:170px;
+  right:-112px;
+  bottom:-125px;
+  border-radius:50%;
+  background:rgba(124,140,255,.12);
+  pointer-events:none;
+}
+.journey-card-copy{position:relative;z-index:1;min-width:0}
+.journey-card-copy small,
+.journey-onboarding-primary small{
+  color:#aab4ff;
+  font-size:9px;
+  font-weight:800;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+}
+.journey-card-copy h2,
+.journey-onboarding-primary h2{
+  margin:6px 0 6px;
+  font-family:'Bricolage Grotesque',sans-serif;
+  font-size:clamp(22px,5.6vw,30px);
+  line-height:1.05;
+  letter-spacing:-.02em;
+}
+.journey-card-copy p,
+.journey-onboarding-primary p,
+.onboarding-secondary p,
+.demo-entry-tertiary p{
+  margin:0;
+  max-width:620px;
+  color:var(--muted);
+  font-size:10px;
+  line-height:1.55;
+}
+.journey-card-actions{
+  position:relative;
+  z-index:1;
+  display:flex;
+  flex-direction:column;
+  align-items:stretch;
+  gap:5px;
+  min-width:160px;
+}
+.journey-card-actions .primary{margin:0;width:100%}
+.journey-card-actions .text-button{justify-content:center}
+
+.journey-onboarding-primary{
+  border-color:rgba(102,214,174,.26);
+  background:radial-gradient(circle at 90% 0,rgba(102,214,174,.09),transparent 42%),var(--journey-panel);
+}
+.journey-onboarding-primary .dropzone{
+  margin-top:14px;
+  border-color:rgba(102,214,174,.25);
+  background:rgba(102,214,174,.045);
+}
+.onboarding-secondary{
+  border-color:rgba(124,140,255,.16);
+  background:rgba(255,255,255,.028);
+}
+.onboarding-secondary .secondary{margin-top:12px}
+.demo-entry-tertiary{
+  opacity:.92;
+  border-style:dashed;
+  box-shadow:none;
+  background:rgba(255,255,255,.022);
+}
+.demo-entry-tertiary .text-button{
+  grid-column:1/-1;
+  justify-content:center;
+  margin-top:0;
+}
+.compact-decisions{padding:12px 14px}
+.compact-decisions>small{
+  display:block;
+  margin-bottom:5px;
+  color:var(--muted);
+  font-size:8px;
+  font-weight:800;
+  letter-spacing:.07em;
+  text-transform:uppercase;
+}
+
+/* Demo judge guide */
+.demo-progress{
+  position:relative;
+  display:grid;
+  gap:9px;
+  padding:11px 12px;
+  border:1px solid rgba(124,140,255,.2);
+  border-radius:15px;
+  background:linear-gradient(145deg,rgba(124,140,255,.09),rgba(255,255,255,.024));
+  box-shadow:0 14px 40px rgba(0,0,0,.12);
+}
+.demo-progress-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  color:var(--muted);
+  font-size:8px;
+  font-weight:800;
+  letter-spacing:.06em;
+  text-transform:uppercase;
+}
+.demo-progress-head b{color:#dfe4ff}
+.demo-progress ol{
+  list-style:none;
+  margin:0;
+  padding:0;
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:6px;
+}
+.demo-progress li{
+  display:grid;
+  grid-template-columns:auto 1fr;
+  align-items:center;
+  gap:6px;
+  min-width:0;
+  padding:7px;
+  border:1px solid rgba(255,255,255,.06);
+  border-radius:10px;
+  color:var(--muted);
+  background:rgba(3,7,18,.22);
+}
+.demo-progress li i{
+  width:20px;
+  height:20px;
+  display:grid;
+  place-items:center;
+  border-radius:50%;
+  background:rgba(255,255,255,.05);
+  color:inherit;
+  font:700 8px 'IBM Plex Mono',monospace;
+  font-style:normal;
+}
+.demo-progress li span{
+  min-width:0;
+  font-size:7px;
+  line-height:1.25;
+}
+.demo-progress li.done{color:var(--positive);border-color:rgba(102,214,174,.12)}
+.demo-progress li.active{color:#eef0ff;border-color:rgba(124,140,255,.35);background:rgba(124,140,255,.11)}
+.demo-progress li.active i{background:rgba(124,140,255,.24);color:#fff}
+.demo-progress-next{justify-self:start;padding-inline:0}
+
+/* Contextual Pro explanation */
+.upgrade-backdrop{
+  position:fixed;
+  inset:0;
+  z-index:80;
+  display:grid;
+  place-items:center;
+  padding:20px;
+  background:rgba(1,4,12,.72);
+  backdrop-filter:blur(10px);
+}
+.contextual-upgrade{
+  position:relative;
+  width:min(100%,430px);
+  max-height:min(82dvh,680px);
+  overflow:auto;
+  border:1px solid rgba(124,140,255,.3);
+  border-radius:22px;
+  padding:22px;
+  color:inherit;
+  background:radial-gradient(circle at 100% 0,rgba(124,140,255,.18),transparent 42%),rgba(8,13,29,.97);
+  box-shadow:0 32px 90px rgba(0,0,0,.52);
+}
+.contextual-upgrade>small{
+  color:#aab4ff;
+  font-size:8px;
+  font-weight:800;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+}
+.contextual-upgrade h2{
+  margin:7px 34px 7px 0;
+  font-family:'Bricolage Grotesque',sans-serif;
+  font-size:26px;
+  line-height:1.05;
+}
+.contextual-upgrade>p{
+  margin:0;
+  color:var(--muted);
+  font-size:10px;
+  line-height:1.55;
+}
+.contextual-upgrade ul{
+  display:grid;
+  gap:7px;
+  margin:16px 0;
+  padding:0;
+  list-style:none;
+}
+.contextual-upgrade li{
+  position:relative;
+  padding:9px 10px 9px 28px;
+  border:1px solid rgba(255,255,255,.06);
+  border-radius:11px;
+  background:rgba(255,255,255,.03);
+  font-size:9px;
+}
+.contextual-upgrade li:before{
+  content:'✓';
+  position:absolute;
+  left:10px;
+  color:var(--positive);
+  font-weight:900;
+}
+.upgrade-close{
+  position:absolute;
+  top:10px;
+  right:10px;
+  width:44px;
+  min-width:44px;
+  border:0;
+  border-radius:12px;
+  background:transparent;
+  color:var(--muted);
+  font-size:22px;
+}
+.upgrade-actions{display:grid;gap:7px}
+.upgrade-actions .primary{width:100%;margin:0}
+.upgrade-actions .text-button{justify-content:center}
+
+/* Radar story handoff */
+.radar-journey-summary{
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+  padding:12px 14px;
+  border:1px solid rgba(255,255,255,.07);
+  border-radius:14px;
+  background:rgba(255,255,255,.028);
+}
+.radar-journey-summary small{
+  color:var(--muted);
+  font-size:8px;
+  font-weight:800;
+  letter-spacing:.06em;
+  text-transform:uppercase;
+}
+.radar-journey-summary strong{
+  font-family:'Bricolage Grotesque',sans-serif;
+  font-size:16px;
+  line-height:1.18;
+}
+.radar-journey-summary span{
+  color:var(--muted);
+  font-size:9px;
+  line-height:1.45;
+}
+.radar-journey-summary.risk{
+  border-color:rgba(255,123,117,.23);
+  background:linear-gradient(145deg,rgba(255,123,117,.07),rgba(255,255,255,.025));
+}
+.radar-journey-summary.risk strong{color:#ffd0cd}
+.radar-journey-summary.healthy{
+  border-color:rgba(102,214,174,.17);
+  background:linear-gradient(145deg,rgba(102,214,174,.05),rgba(255,255,255,.025));
+}
+.radar-journey-summary.healthy strong{color:#ddfff3}
+
+/* Planner hierarchy + disclosures */
+.planner-primary-surface{
+  border-color:rgba(124,140,255,.28)!important;
+  box-shadow:0 20px 56px rgba(0,0,0,.18)!important;
+}
+.planner-health-compact{opacity:.9}
+.planner-advanced{
+  display:grid;
+  gap:8px;
+  margin-top:2px;
+}
+.planner-advanced-heading{
+  padding:3px 2px 5px;
+}
+.planner-advanced-heading small{
+  color:var(--muted);
+  font-size:8px;
+  font-weight:800;
+  letter-spacing:.06em;
+  text-transform:uppercase;
+}
+.planner-advanced-heading h2{
+  margin:4px 0 3px;
+  font-family:'Bricolage Grotesque',sans-serif;
+  font-size:19px;
+}
+.planner-advanced-heading p{
+  margin:0;
+  max-width:560px;
+  color:var(--muted);
+  font-size:9px;
+  line-height:1.5;
+}
+.planner-disclosure{
+  overflow:hidden;
+  border:1px solid var(--border);
+  border-radius:15px;
+  background:rgba(255,255,255,.026);
+}
+.planner-disclosure>summary{
+  list-style:none;
+  cursor:pointer;
+  display:grid;
+  grid-template-columns:auto 1fr auto;
+  align-items:center;
+  gap:10px;
+  padding:11px 12px;
+  user-select:none;
+  outline:none;
+}
+.planner-disclosure>summary::-webkit-details-marker{display:none}
+.planner-disclosure>summary>span:nth-child(2){display:flex;flex-direction:column;gap:2px;min-width:0}
+.planner-disclosure>summary b{font-size:10px}
+.planner-disclosure>summary small{color:var(--muted);font-size:8px;line-height:1.35}
+.planner-disclosure>summary>svg{color:var(--muted);transition:transform 180ms ease}
+.planner-disclosure[open]>summary{
+  border-bottom:1px solid var(--border);
+  background:rgba(124,140,255,.045);
+}
+.planner-disclosure[open]>summary>svg{transform:rotate(90deg)}
+.planner-disclosure-icon{
+  width:34px;
+  height:34px;
+  display:grid;
+  place-items:center;
+  border-radius:10px;
+  color:#bbc3ff;
+  background:rgba(124,140,255,.09);
+  border:1px solid rgba(124,140,255,.14);
+}
+.planner-disclosure-body{
+  margin:0!important;
+  border:0!important;
+  border-radius:0!important;
+  box-shadow:none!important;
+  background:transparent!important;
+}
+.planner-scenario-disclosure{padding:13px 15px}
+.planner-disclosure-empty{
+  margin:0;
+  color:var(--muted);
+  font-size:9px;
+  line-height:1.5;
+}
+.planner-standalone-simulation{margin:0;border:0;background:transparent}
+
+/* Bottom navigation + safe-area polish */
+.bottom-nav{
+  height:auto!important;
+  min-height:64px;
+  padding-bottom:calc(8px + env(safe-area-inset-bottom))!important;
+  background:linear-gradient(180deg,rgba(7,11,24,.93),rgba(5,8,18,.985));
+  backdrop-filter:blur(16px);
+}
+.bottom-nav button{
+  padding-top:7px;
+  padding-bottom:5px;
+}
+.bottom-nav button.active{
+  background:rgba(124,140,255,.065);
+  border-radius:12px;
+}
+
+@media(max-width:680px){
+  .main{gap:12px}
+  .journey-card{grid-template-columns:1fr;gap:12px;padding:16px}
+  .journey-card-actions{min-width:0;display:grid;grid-template-columns:1fr auto;align-items:center}
+  .journey-card-actions .text-button{padding-inline:10px}
+  .demo-progress ol{grid-template-columns:1fr 1fr}
+  .planner-heading h1{font-size:clamp(27px,8vw,36px)}
+  .planner-primary-surface{padding:14px}
+  .planner-disclosure>summary{padding:10px}
+  .contextual-upgrade{max-height:86dvh}
+}
+
+@media(max-width:480px){
+  .shell{padding-bottom:calc(88px + env(safe-area-inset-bottom))}
+  .heading h1{font-size:clamp(25px,8.3vw,32px)}
+  .journey-card-copy h2,.journey-onboarding-primary h2{font-size:24px}
+  .journey-card-actions{grid-template-columns:1fr}
+  .journey-onboarding-primary,.onboarding-secondary,.demo-entry-tertiary{padding:14px}
+  .metrics{gap:5px}
+  .metric{padding:10px 8px}
+  .demo-progress{padding:9px}
+  .demo-progress ol{grid-template-columns:1fr 1fr;gap:5px}
+  .demo-progress li{padding:6px}
+  .upgrade-backdrop{align-items:end;padding:0}
+  .contextual-upgrade{
+    width:100%;
+    max-height:88dvh;
+    box-sizing:border-box;
+    border-radius:22px 22px 0 0;
+    border-bottom:0;
+    padding:20px 16px calc(18px + env(safe-area-inset-bottom));
+  }
+  .contextual-upgrade h2{font-size:24px}
+  .radar-journey-summary{padding:11px 12px}
+  .radar-journey-summary strong{font-size:15px}
+  .planner-health-compact article{min-width:0}
+  .planner-disclosure>summary{grid-template-columns:auto minmax(0,1fr) auto;gap:8px}
+  .planner-disclosure-icon{width:32px;height:32px}
+  .market-sim-inputs{grid-template-columns:1fr 1fr}
+  .bottom-nav{padding-left:6px!important;padding-right:6px!important}
+  .bottom-nav button{min-width:0;padding-inline:3px}
+}
+
+@media(prefers-reduced-motion:reduce){
+  .planner-disclosure>summary>svg,
+  .contextual-upgrade,
+  .upgrade-backdrop,
+  .demo-progress li,
+  .journey-card{
+    transition:none!important;
+    animation:none!important;
+  }
+}
