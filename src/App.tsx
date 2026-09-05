@@ -27,6 +27,10 @@ import { createDemoState } from './demo/demoData';
 import { PlannerPage } from './features/planner/PlannerPage';
 import { createPlanningState, ensurePlanningState, type PlanningState } from './features/planner/planningEngine';
 import { RadarPage } from './features/radar/RadarPage';
+import { ContextualUpgrade } from './journey/ContextualUpgrade';
+import { DemoProgress } from './journey/DemoProgress';
+import { JourneyCard } from './journey/JourneyCard';
+import { deriveDemoStep, deriveJourneyStage, nextPendingId } from './journey/journeyState';
 import { parseStatementFile } from './importers/statementImport';
 import { AiFeatureError, suggestCategory } from './integrations/ai';
 import { getOpenFinanceData, getPluggyStatus, openPluggyConnect } from './integrations/pluggy';
@@ -48,6 +52,7 @@ import type { BankAccount, Rule, Tx } from './types';
 type Tab = 'today' | 'inbox' | 'radar' | 'planner' | 'more';
 type Filter = 'attention' | 'resolved' | 'auto';
 type Saved = { txs: Tx[]; rules: Rule[]; accounts: BankAccount[]; planning?: PlanningState };
+type UpgradeContext = { title: string; description: string; benefits: string[] } | null;
 
 const categories = ['Salário','Recebimento','Condomínio','Moradia','Energia','Telefonia/Internet','Assinaturas','Academia','Cartão de crédito','Combustível','Supermercado','Alimentação','Conveniência','Transporte','Saúde','Serviços','Impostos','Folha/Pessoal','Fornecedor','Outros'];
 const brl = (c: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(c / 100);
@@ -87,6 +92,11 @@ export default function App() {
   const [subscription, setSubscription] = useState<SubscriptionState>(() => ({
     bridgeAvailable: hasNativeSubscriptionBridge(), configured: false, isPro: false,
   }));
+  const [radarSeenThisSession, setRadarSeenThisSession] = useState(false);
+  const [demoTouchedReview, setDemoTouchedReview] = useState(false);
+  const [demoTouchedWatch, setDemoTouchedWatch] = useState(false);
+  const [demoTouchedPlan, setDemoTouchedPlan] = useState(false);
+  const [upgradeContext, setUpgradeContext] = useState<UpgradeContext>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -123,6 +133,34 @@ export default function App() {
   const visibleProjection = useMemo(() => visibleRadarPoints(radar.projection, access), [radar.projection, access]);
   const visibleInsight = useMemo(() => access.hasProAccess ? fullInsight : analyzeRadar(visibleProjection, radar.startingBalance), [access.hasProAccess, fullInsight, visibleProjection, radar.startingBalance]);
   const budgetHealth = useMemo(() => analyzeBudgetHealth(txs), [txs]);
+  const hasMeaningfulPlan = planning.goals.length > 0 || planning.adjustments.length > 0;
+  const journeyStage = deriveJourneyStage({
+    txCount: txs.length,
+    attentionCount: attention.length,
+    hasMeaningfulPlan,
+    radarSeenThisSession,
+    hasRadarAttention: Boolean(fullInsight.firstNegative),
+  });
+  const homeJourneyStage = demoMode && !demoTouchedReview ? 'review' : journeyStage;
+  const demoStep = deriveDemoStep({ touchedReview: demoTouchedReview, touchedWatch: demoTouchedWatch, touchedPlan: demoTouchedPlan });
+
+  function openTab(next: Tab) {
+    setTab(next);
+    if (next === 'radar') {
+      setRadarSeenThisSession(true);
+      if (demoMode) setDemoTouchedWatch(true);
+    }
+    if (next === 'planner' && demoMode) setDemoTouchedPlan(true);
+  }
+
+  function openTransaction(id: string) {
+    setSelected(id);
+    if (demoMode) setDemoTouchedReview(true);
+  }
+
+  function showUpgrade(title: string, description: string, benefits: string[]) {
+    setUpgradeContext({ title, description, benefits });
+  }
 
   function enterDemo() {
     realStateRef.current = { txs, rules, accounts, planning };
@@ -134,6 +172,11 @@ export default function App() {
     setPlanning(demo.planning);
     setSelected(null);
     setTab('today');
+    setRadarSeenThisSession(false);
+    setDemoTouchedReview(false);
+    setDemoTouchedWatch(false);
+    setDemoTouchedPlan(false);
+    setUpgradeContext(null);
     setMessage('Demo Pro carregada com dados e plano sintéticos. Seus dados reais e sua assinatura não foram alterados.');
   }
 
@@ -146,6 +189,11 @@ export default function App() {
     setPlanning(ensurePlanningState(real.planning));
     setSelected(null);
     setTab('today');
+    setRadarSeenThisSession(false);
+    setDemoTouchedReview(false);
+    setDemoTouchedWatch(false);
+    setDemoTouchedPlan(false);
+    setUpgradeContext(null);
     setMessage('Demonstração encerrada.');
   }
 
@@ -161,6 +209,12 @@ export default function App() {
       return;
     }
     if (openNativePlan()) setMessage('Abrindo assinatura Pro…');
+  }
+
+  function continueUpgrade() {
+    const context = upgradeContext;
+    setUpgradeContext(null);
+    openSubscriptionExperience(context?.description);
   }
 
   function restorePlan() {
@@ -183,7 +237,7 @@ export default function App() {
       providerCategory: x.category || undefined,
     })).filter(x => Boolean(x.date));
     const classified = applyPatternIntelligence(normalized, rules);
-    setTxs(classified); setAccounts(data.accounts); setTab('inbox');
+    setTxs(classified); setAccounts(data.accounts); setFilter('attention'); openTab('inbox');
     setMessage(`${classified.length} movimentações · ${classified.filter(x => x.status === 'candidate').length} automáticas.`);
   }
 
@@ -200,7 +254,10 @@ export default function App() {
   }
 
   function handleConnectBank() {
-    if (!access.hasProAccess) { openSubscriptionExperience('Open Finance automático faz parte do Plano Pro.'); return; }
+    if (!access.hasProAccess) {
+      showUpgrade('Open Finance automático é Pro', 'No Free você pode continuar importando extratos sem custo.', ['Sincronização automática das contas', 'Movimentações direto na Inbox', 'Menos importações manuais']);
+      return;
+    }
     void connectBank();
   }
 
@@ -212,7 +269,8 @@ export default function App() {
       const incoming = parsed.flatMap(x => x.txs);
       setTxs(applyPatternIntelligence(incoming, rules));
       setAccounts([]);
-      setTab('inbox');
+      setFilter('attention');
+      openTab('inbox');
       setMessage(`${incoming.length} movimentações importadas.`);
     } finally {
       setBusy(false);
@@ -222,12 +280,25 @@ export default function App() {
 
   function saveCategory(id: string, category: string, makeRule: boolean) {
     const item = txs.find(x => x.id === id); if (!item) return;
+    const nextId = nextPendingId(txs, id);
     setTxs(current => current.map(x => x.id === id ? { ...x, status: 'categorized', category, categorySource: 'manual', categoryConfidence: 100 } : x));
     if (makeRule && !canCreateRule(access, activeRuleCount)) {
-      setSelected(null); setTab('more'); setMessage('Categoria salva. O Free inclui até 3 regras ativas; Pro libera regras ilimitadas.'); return;
+      setSelected(nextId);
+      setFilter('attention');
+      if (!nextId) setTab('inbox');
+      setMessage('Categoria salva. O Free inclui até 3 regras ativas; a regra extra não foi criada.');
+      return;
     }
     if (makeRule) setRules(current => [...current, { id: crypto.randomUUID(), pattern: item.counterparty || item.description, category, active: true }]);
-    setSelected(null); setMessage(makeRule ? 'Categoria salva e regra criada.' : 'Categoria salva.');
+    if (demoMode) setDemoTouchedReview(true);
+    setFilter('attention');
+    setSelected(nextId);
+    if (nextId) {
+      setMessage(makeRule ? 'Categoria salva e regra criada. Próxima pendência aberta.' : 'Categoria salva. Próxima pendência aberta.');
+    } else {
+      setTab('inbox');
+      setMessage(makeRule ? 'Revisão concluída. Categoria salva e regra criada.' : 'Revisão concluída. Tudo que precisava de você foi tratado.');
+    }
   }
 
   function toggleRule(id: string, nextActive: boolean) {
@@ -240,10 +311,19 @@ export default function App() {
   function resetLocalData() {
     localStorage.removeItem('wtm-portable');
     setTxs([]); setRules([]); setAccounts([]); setPlanning(createPlanningState()); setTab('today');
+    setRadarSeenThisSession(false); setUpgradeContext(null);
   }
 
   const active = selected ? txs.find(x => x.id === selected) : undefined;
-  if (active) return <Detail tx={active} onBack={() => setSelected(null)} onSave={saveCategory} showAdvancedRecurrence={access.hasProAccess} onUpgrade={() => { setSelected(null); openSubscriptionExperience('Detalhes avançados de recorrência fazem parte do Plano Pro.'); }} />;
+  const activeHasNext = active ? nextPendingId(txs, active.id) !== null : false;
+  if (active) return <Detail tx={active} onBack={() => setSelected(null)} onSave={saveCategory} hasNextPending={activeHasNext} showAdvancedRecurrence={access.hasProAccess} onUpgrade={() => { setSelected(null); showUpgrade('Detalhes avançados de recorrência são Pro', 'O Free mantém a categorização e os sinais básicos. O Pro abre periodicidade, confiança e impacto no Radar.', ['Periodicidade detectada', 'Confiança e faixa típica', 'Impacto no Radar completo']); }} />;
+
+  const renderHomeJourney = () => {
+    if (homeJourneyStage === 'review') return <JourneyCard eyebrow="Próximo passo" title={`${attention.length} movimentações precisam de você`} description={`${resolved.length + automated.length} já foram organizadas. Revise só o que ainda precisa de uma decisão.`} actionLabel="Revisar agora" onAction={() => { setFilter('attention'); openTab('inbox'); }} />;
+    if (homeJourneyStage === 'radar-ready') return <JourneyCard eyebrow="Próximo passo" title="Seu dinheiro está organizado." description="Veja o que vem pela frente com a projeção construída a partir das movimentações revisadas." actionLabel="Abrir Radar" onAction={() => openTab('radar')} />;
+    if (homeJourneyStage === 'plan-ready') return <JourneyCard eyebrow="Próximo passo" title="Agora transforme essa leitura em um plano." description="Converse sobre objetivos e prioridades; o sistema confirma premissas antes de alterar o plano." actionLabel="Planejar" onAction={() => openTab('planner')} secondaryLabel="Voltar ao Radar" onSecondary={() => openTab('radar')} />;
+    return <JourneyCard eyebrow="Acompanhamento" title={fullInsight.firstNegative ? 'Seu plano está ativo. Há um ponto para acompanhar.' : 'Seu plano está ativo.'} description={fullInsight.firstNegative ? 'Abra o Radar para entender a pressão prevista sem alterar seu plano automaticamente.' : 'Continue acompanhando a projeção ou ajuste seus objetivos quando a vida mudar.'} actionLabel={fullInsight.firstNegative ? 'Abrir Radar' : 'Continuar plano'} onAction={() => openTab(fullInsight.firstNegative ? 'radar' : 'planner')} secondaryLabel={fullInsight.firstNegative ? 'Ver plano' : 'Ver Radar'} onSecondary={() => openTab(fullInsight.firstNegative ? 'planner' : 'radar')} />;
+  };
 
   return <div className={`shell ${demoMode ? 'demo-shell' : ''}`}>
     <header className="app-header">
@@ -252,23 +332,26 @@ export default function App() {
     </header>
     {message && <div className="toast"><span className="ok"><Check size={14}/></span><p>{message}</p><button aria-label="Fechar" onClick={() => setMessage('')}><X size={15}/></button></div>}
     <main className="main page-stack">
+      {demoMode && <DemoProgress step={demoStep} onNext={demoStep === 1 ? () => { setFilter('attention'); openTab('inbox'); } : demoStep === 2 ? () => openTab('radar') : demoStep === 3 ? () => openTab('planner') : undefined} />}
       {tab === 'today' && <>
-        <section className="heading"><span>{demoMode ? 'Demo Pro · dados sintéticos' : 'Hoje'}</span><h1>{txs.length ? `${attention.length} decisões pendentes` : 'Descubra para onde seu dinheiro foi.'}</h1><p>{txs.length ? `${resolved.length} resolvidos · ${automated.length} automatizados${demoMode ? ' · plano sintético pronto para explorar' : ''}` : 'Importe um extrato gratuitamente. Open Finance, Radar completo e planejamento avançado ficam no Pro.'}</p></section>
+        <section className="heading"><span>{demoMode ? 'Demo Pro · dados sintéticos' : 'Hoje'}</span><h1>{txs.length ? 'O que precisa da sua atenção agora.' : 'Descubra para onde seu dinheiro foi.'}</h1><p>{txs.length ? `${attention.length} para revisar · ${automated.length} organizadas automaticamente · ${resolved.length} confirmadas` : 'Comece pelo extrato gratuito. Open Finance automático, Radar completo e planejamento avançado ficam no Pro.'}</p></section>
         {!txs.length ? <>
-          <section className="surface demo-entry"><div className="demo-entry-icon"><Play size={21}/></div><div><small>Veja antes de conectar</small><h2>Explorar Demo Pro</h2><p>Um cenário 100% sintético libera Inbox, Radar B+, objetivos e cenários sem alterar sua assinatura.</p></div><button className="primary" onClick={enterDemo}><Play size={16}/>Abrir demo</button></section>
-          <section className={`surface ${busy ? 'motion-scan' : ''}`}><div className="surface-head"><div><small>Open Finance · sincronização automática</small><h2>Conectar banco</h2><p>{access.hasProAccess ? 'Pluggy envia contas e movimentações direto para a Inbox.' : 'No Pro, suas contas e movimentações chegam automaticamente à Inbox.'}</p></div><span className={`status ${access.hasProAccess ? bankStatus : 'pro'}`}>{access.hasProAccess ? (bankStatus === 'ready' ? 'Sandbox pronto' : bankStatus === 'missing' ? 'ENV ausente' : bankStatus === 'error' ? 'Verificar' : 'Verificando') : 'Pro'}</span></div><button className="primary" onClick={handleConnectBank} disabled={busy || (access.hasProAccess && bankStatus === 'missing')}><Landmark size={17}/>{busy ? 'Sincronizando…' : access.hasProAccess ? 'Conectar banco' : 'Conectar com Pro'}</button></section>
-          <div className="or">ou</div>
-          <section className="surface"><input ref={fileRef} type="file" accept=".ofx,.csv,.txt,.xls,.xlsx" multiple onChange={e => void importFiles(e.target.files)} hidden/><button className="dropzone" onClick={() => fileRef.current?.click()}><FileUp size={22}/><b>Adicionar extratos grátis</b><span>OFX · CSV · Excel</span></button></section>
+          <section className="surface journey-onboarding-primary"><div><small>Começar agora · Free</small><h2>Adicionar extrato grátis</h2><p>Envie OFX, CSV, TXT ou Excel. O motor organiza as movimentações localmente e leva você direto para a Inbox.</p></div><input ref={fileRef} type="file" accept=".ofx,.csv,.txt,.xls,.xlsx" multiple onChange={e => void importFiles(e.target.files)} hidden/><button className="dropzone" onClick={() => fileRef.current?.click()}><FileUp size={22}/><b>Adicionar extrato grátis</b><span>OFX · CSV · TXT · Excel</span></button></section>
+          <section className={`surface onboarding-secondary ${busy ? 'motion-scan' : ''}`}><div className="surface-head"><div><small>Open Finance · Pro</small><h2>Conectar banco</h2><p>{access.hasProAccess ? 'Pluggy envia contas e movimentações direto para a Inbox.' : 'Automatize a entrada de contas e movimentações sem perder a opção gratuita de importar extratos.'}</p></div><span className={`status ${access.hasProAccess ? bankStatus : 'pro'}`}>{access.hasProAccess ? (bankStatus === 'ready' ? 'Sandbox pronto' : bankStatus === 'missing' ? 'ENV ausente' : bankStatus === 'error' ? 'Verificar' : 'Verificando') : 'Pro'}</span></div><button className="secondary" onClick={handleConnectBank} disabled={busy || (access.hasProAccess && bankStatus === 'missing')}><Landmark size={17}/>{busy ? 'Sincronizando…' : access.hasProAccess ? 'Conectar banco' : 'Conhecer Open Finance Pro'}</button></section>
+          <section className="surface demo-entry demo-entry-tertiary"><div className="demo-entry-icon"><Play size={21}/></div><div><small>Veja antes de conectar</small><h2>Explorar Demo Pro</h2><p>Um cenário 100% sintético mostra a jornada completa sem alterar seus dados ou sua assinatura.</p></div><button className="text-button" onClick={enterDemo}><Play size={15}/>Abrir demo</button></section>
         </> : <>
-          <section className="metrics"><Metric label="Pendências" value={String(attention.length)}/><Metric label="Automatizados" value={String(automated.length)}/><Metric label={demoMode ? 'Saldo simulado' : 'Saldo atual'} value={accounts.length ? brl(radar.startingBalance) : '—'}/></section>
-          <section className="surface today-radar-card"><div><small>Radar · {access.hasProAccess ? '30 dias' : 'prévia de 7 dias'}</small><h2>{access.hasProAccess ? 'Sua visão de 30 dias está pronta.' : 'Sua prévia da próxima semana está pronta.'}</h2><p>Abra o Radar para ver a trajetória e, quando necessário, o bloco Fique de olho.</p></div><button className="text-button" onClick={() => setTab('radar')}>Abrir Radar <ChevronRight size={15}/></button></section>
-          <section className="surface today-plan-card"><div><small>Planejamento</small><h2>{planning.goals.length ? `${planning.goals.length} objetivos no seu plano` : 'Transforme prioridades em um plano.'}</h2><p>{access.hasProAccess ? 'Converse, confirme premissas e compare cenários calculados pelo motor determinístico.' : 'O Free permite começar objetivos; o Pro libera conversa completa, pesquisa e cenários.'}</p></div><button className="text-button" onClick={() => setTab('planner')}>Planejar <ChevronRight size={15}/></button></section>
-          <section className="surface"><small>Decisões</small>{attention.slice(0, 5).map(t => <TxRow key={t.id} tx={t} onClick={() => setSelected(t.id)}/>)}{!attention.length && <Empty text="Nada pendente. O motor resolveu o que estava claro."/>}</section>
+          {renderHomeJourney()}
+          <section className="metrics"><Metric label="Para revisar" value={String(attention.length)}/><Metric label="Automáticas" value={String(automated.length)}/><Metric label={demoMode ? 'Saldo simulado' : 'Saldo atual'} value={accounts.length ? brl(radar.startingBalance) : '—'}/></section>
+          {attention.length > 0 && <section className="surface compact-decisions"><small>Próximas decisões</small>{attention.slice(0, 3).map(t => <TxRow key={t.id} tx={t} onClick={() => openTransaction(t.id)}/>)}</section>}
         </>}
       </>}
-      {tab === 'inbox' && <><section className="heading"><span>Inbox</span><h1>Movimentações</h1><p>{demoMode ? 'Demonstração sintética: abra o PIX ambíguo para testar a revisão.' : 'Revise apenas o que o motor não consegue afirmar com segurança.'}</p></section><div className="segments"><button className={filter === 'attention' ? 'active' : ''} onClick={() => setFilter('attention')}>Pendências · {attention.length}</button><button className={filter === 'resolved' ? 'active' : ''} onClick={() => setFilter('resolved')}>Resolvidos · {resolved.length}</button><button className={filter === 'auto' ? 'active' : ''} onClick={() => setFilter('auto')}>Auto · {automated.length}</button></div><section className="surface">{(filter === 'attention' ? attention : filter === 'resolved' ? resolved : automated).map(t => <TxRow key={t.id} tx={t} onClick={() => setSelected(t.id)}/>)}{!(filter === 'attention' ? attention : filter === 'resolved' ? resolved : automated).length && <Empty text="Nenhuma movimentação neste estado."/>}</section></>}
-      {tab === 'radar' && <RadarPage startingBalance={radar.startingBalance} projection={visibleProjection} insight={visibleInsight} budgetHealth={budgetHealth} hasProAccess={access.hasProAccess} onOpenPlan={() => setTab('planner')} onUpgrade={() => openSubscriptionExperience('Radar completo de 30 dias e detalhes de risco fazem parte do Plano Pro.')} />}
-      {tab === 'planner' && <PlannerPage state={planning} budgetHealth={budgetHealth} hasProAccess={access.hasProAccess} demoMode={demoMode} onChange={setPlanning} onUpgrade={() => openSubscriptionExperience('Conversa completa, pesquisa de mercado e cenários avançados fazem parte do Plano Pro.')} />}
+      {tab === 'inbox' && <>
+        <section className="heading"><span>Inbox · fila de decisões</span><h1>{attention.length ? `${attention.length} para revisar` : 'Tudo revisado'}</h1><p>{attention.length ? `${automated.length} organizadas automaticamente · ${resolved.length} já confirmadas. Foque apenas no que ainda precisa de você.` : 'As pendências acabaram. O Radar já pode usar essas informações para mostrar o que vem pela frente.'}</p></section>
+        <div className="segments"><button className={filter === 'attention' ? 'active' : ''} onClick={() => setFilter('attention')}>Revisar · {attention.length}</button><button className={filter === 'resolved' ? 'active' : ''} onClick={() => setFilter('resolved')}>Resolvidas · {resolved.length}</button><button className={filter === 'auto' ? 'active' : ''} onClick={() => setFilter('auto')}>Automáticas · {automated.length}</button></div>
+        {filter === 'attention' && !attention.length ? <JourneyCard eyebrow="Revisão concluída" title="Tudo revisado" description="O Radar já consegue usar o histórico organizado para construir sua visão à frente." actionLabel="Ver meu Radar" onAction={() => openTab('radar')} /> : <section className="surface">{(filter === 'attention' ? attention : filter === 'resolved' ? resolved : automated).map(t => <TxRow key={t.id} tx={t} onClick={() => openTransaction(t.id)}/>)}{!(filter === 'attention' ? attention : filter === 'resolved' ? resolved : automated).length && <Empty text="Nenhuma movimentação neste estado."/>}</section>}
+      </>}
+      {tab === 'radar' && <RadarPage startingBalance={radar.startingBalance} projection={visibleProjection} insight={visibleInsight} budgetHealth={budgetHealth} hasProAccess={access.hasProAccess} onOpenPlan={() => openTab('planner')} onUpgrade={() => showUpgrade('Radar completo é Pro', 'Você já pode ver os próximos 7 dias. O Pro libera a visão completa sem mudar os cálculos do motor.', ['30 dias de projeção', 'Drivers e detalhes de pressão', 'Recorrências avançadas no contexto do Radar'])} />}
+      {tab === 'planner' && <PlannerPage state={planning} budgetHealth={budgetHealth} hasProAccess={access.hasProAccess} demoMode={demoMode} onChange={setPlanning} onUpgrade={() => showUpgrade('Planejamento avançado é Pro', 'O Free mantém a leitura básica e o início dos objetivos. O Pro libera a conversa completa e as ferramentas avançadas.', ['Conversa completa de planejamento', 'Pesquisa contextual com fontes', 'Cenários e simulações avançadas'])} />}
       {tab === 'more' && <>
         <section className="heading"><span>Mais</span><h1>Plano, regras e preferências</h1></section>
         <PlanCard accessMode={access.mode} subscription={subscription} onPlan={() => openSubscriptionExperience()} onRestore={restorePlan} />
@@ -277,7 +360,8 @@ export default function App() {
         {!demoMode && <button className="secondary" onClick={resetLocalData}>Reiniciar dados locais</button>}
       </>}
     </main>
-    <nav className="bottom-nav"><NavButton active={tab === 'today'} onClick={() => setTab('today')} icon={<CircleDollarSign/>} label="Hoje"/><NavButton active={tab === 'inbox'} onClick={() => setTab('inbox')} icon={<Inbox/>} label="Inbox"/><NavButton active={tab === 'radar'} onClick={() => setTab('radar')} icon={<Radar/>} label="Radar"/><NavButton active={tab === 'planner'} onClick={() => setTab('planner')} icon={<Target/>} label="Planejar"/><NavButton active={tab === 'more'} onClick={() => setTab('more')} icon={<Settings2/>} label="Mais"/></nav>
+    <ContextualUpgrade open={Boolean(upgradeContext)} title={upgradeContext?.title || ''} description={upgradeContext?.description || ''} benefits={upgradeContext?.benefits || []} onContinue={continueUpgrade} onClose={() => setUpgradeContext(null)} />
+    <nav className="bottom-nav"><NavButton active={tab === 'today'} onClick={() => openTab('today')} icon={<CircleDollarSign/>} label="Hoje"/><NavButton active={tab === 'inbox'} onClick={() => openTab('inbox')} icon={<Inbox/>} label="Inbox"/><NavButton active={tab === 'radar'} onClick={() => openTab('radar')} icon={<Radar/>} label="Radar"/><NavButton active={tab === 'planner'} onClick={() => openTab('planner')} icon={<Target/>} label="Planejar"/><NavButton active={tab === 'more'} onClick={() => openTab('more')} icon={<Settings2/>} label="Mais"/></nav>
   </div>;
 }
 
@@ -293,7 +377,7 @@ function Empty({ text }: { text: string }) { return <div className="empty"><Wall
 function NavButton({ active, onClick, icon, label }: { active: boolean; onClick: () => void; icon: ReactNode; label: string }) { return <button className={active ? 'active' : ''} onClick={onClick}>{icon}<span>{label}</span></button>; }
 function TxRow({ tx, onClick }: { tx: Tx; onClick: () => void }) { const period = tx.recurrencePeriod === 'monthly' ? 'mensal' : tx.recurrencePeriod === 'biweekly' ? 'quinzenal' : tx.recurrencePeriod === 'weekly' ? 'semanal' : ''; return <button className="tx-row" onClick={onClick}><div><b>{tx.description}</b><span>{tx.category || 'Sem categoria'}{period ? ` · ${period}` : ''}{tx.categoryConfidence ? ` · ${tx.categoryConfidence}%` : ''}</span></div><div><strong>{tx.direction === 'debit' ? '−' : '+'}{brl(tx.amount)}</strong><small>{tx.status === 'candidate' ? 'Auto' : tx.status === 'categorized' ? 'Categorizado' : tx.status === 'confirmed' ? 'Confirmado' : tx.status === 'needs_review' ? 'Revisar' : 'Pendente'}</small></div></button>; }
 
-function Detail({ tx, onBack, onSave, showAdvancedRecurrence, onUpgrade }: { tx: Tx; onBack: () => void; onSave: (id: string, category: string, makeRule: boolean) => void; showAdvancedRecurrence: boolean; onUpgrade: () => void }) {
+function Detail({ tx, onBack, onSave, hasNextPending, showAdvancedRecurrence, onUpgrade }: { tx: Tx; onBack: () => void; onSave: (id: string, category: string, makeRule: boolean) => void; hasNextPending: boolean; showAdvancedRecurrence: boolean; onUpgrade: () => void }) {
   const [category, setCategory] = useState(tx.category || 'Outros');
   const [rule, setRule] = useState(false);
   const [aiSuggestion, setAiSuggestion] = useState<{ suggestedCategory: string; confidence: number; reason: string } | null>(null);
@@ -311,5 +395,5 @@ function Detail({ tx, onBack, onSave, showAdvancedRecurrence, onUpgrade }: { tx:
     } finally { setAiBusy(false); }
   }
 
-  return <div className="shell"><header className="detail-header"><button className="icon-button" onClick={onBack}><ArrowLeft size={18}/></button><div><span>Movimentação</span><b>{tx.description}</b></div></header><main className="main page-stack"><section className="money"><span>{longDate(tx.date)} · {tx.counterparty}</span><strong>{tx.direction === 'debit' ? '−' : '+'}{brl(tx.amount)}</strong></section>{tx.recurrenceConfidence && showAdvancedRecurrence && <section className="surface"><div className="surface-head"><div><small>Padrão recorrente · sem IA</small><h2>{tx.recurrencePeriod === 'monthly' ? 'Mensal' : tx.recurrencePeriod === 'biweekly' ? 'Quinzenal' : 'Semanal'}</h2></div><span className="confidence">{tx.recurrenceConfidence}%</span></div><p>{tx.recurrenceSamples} ocorrências compatíveis · dia esperado {tx.recurrenceExpectedDay}</p><p>Faixa típica {brl(tx.recurrenceMinAmount || tx.amount)}–{brl(tx.recurrenceMaxAmount || tx.amount)} · mediana {brl(tx.recurrenceMedianAmount || tx.amount)}</p></section>}{tx.recurrenceConfidence && !showAdvancedRecurrence && <section className="surface recurrence-lock"><div className="locked-inline"><LockKeyhole size={16}/><div><small>Padrão detectado</small><h2>Detalhes avançados no Pro</h2></div></div><p>O motor encontrou sinais de recorrência. Periodicidade, confiança, faixa típica e impacto no Radar completo ficam no Pro.</p><button className="secondary" onClick={onUpgrade}><Crown size={15}/>Ver Plano Pro</button></section>}{canSuggest && <section className="surface ai-suggestion"><div className="ai-title"><span className="ai-orb"><BrainCircuit size={17}/></span><div><small>Movimentação ambígua</small><h2>Sugestão por IA</h2></div></div><p>A IA recebe somente a descrição desta movimentação e não salva nada automaticamente.</p>{!aiSuggestion && <button className="secondary" onClick={() => void requestSuggestion()} disabled={aiBusy}>{aiBusy ? <span className="mini-loader"/> : <Sparkles size={15}/>} {aiBusy ? 'Analisando…' : 'Sugerir com IA'}</button>}{aiError && <div className="ai-error"><span>{aiError}</span><button className="text-button" onClick={() => void requestSuggestion()}>Tentar novamente</button></div>}{aiSuggestion && <div className="suggestion-box"><div><b>{aiSuggestion.suggestedCategory}</b><span>{aiSuggestion.confidence}% de confiança</span></div><p>{aiSuggestion.reason}</p><button className="secondary" onClick={() => setCategory(aiSuggestion.suggestedCategory)}><Check size={15}/>Usar como seleção</button></div>}</section>}<section className="surface"><small>Categoria</small><h2>{tx.category || 'Escolha uma categoria'}</h2><label className="field"><span>Categoria</span><select value={category} onChange={e => setCategory(e.target.value)}>{categories.map(c => <option key={c}>{c}</option>)}</select></label><label className="rule-check"><input type="checkbox" checked={rule} onChange={e => setRule(e.target.checked)}/><span><b>Usar nas próximas semelhantes</b><small>Cria uma regra pelo estabelecimento.</small></span></label><button className="primary" onClick={() => onSave(tx.id, category, rule)}><Check size={17}/>Salvar categoria</button></section></main></div>;
+  return <div className="shell"><header className="detail-header"><button className="icon-button" onClick={onBack}><ArrowLeft size={18}/></button><div><span>Movimentação</span><b>{tx.description}</b></div></header><main className="main page-stack"><section className="money"><span>{longDate(tx.date)} · {tx.counterparty}</span><strong>{tx.direction === 'debit' ? '−' : '+'}{brl(tx.amount)}</strong></section>{tx.recurrenceConfidence && showAdvancedRecurrence && <section className="surface"><div className="surface-head"><div><small>Padrão recorrente · sem IA</small><h2>{tx.recurrencePeriod === 'monthly' ? 'Mensal' : tx.recurrencePeriod === 'biweekly' ? 'Quinzenal' : 'Semanal'}</h2></div><span className="confidence">{tx.recurrenceConfidence}%</span></div><p>{tx.recurrenceSamples} ocorrências compatíveis · dia esperado {tx.recurrenceExpectedDay}</p><p>Faixa típica {brl(tx.recurrenceMinAmount || tx.amount)}–{brl(tx.recurrenceMaxAmount || tx.amount)} · mediana {brl(tx.recurrenceMedianAmount || tx.amount)}</p></section>}{tx.recurrenceConfidence && !showAdvancedRecurrence && <section className="surface recurrence-lock"><div className="locked-inline"><LockKeyhole size={16}/><div><small>Padrão detectado</small><h2>Detalhes avançados no Pro</h2></div></div><p>O motor encontrou sinais de recorrência. Periodicidade, confiança, faixa típica e impacto no Radar completo ficam no Pro.</p><button className="secondary" onClick={onUpgrade}><Crown size={15}/>Ver Plano Pro</button></section>}{canSuggest && <section className="surface ai-suggestion"><div className="ai-title"><span className="ai-orb"><BrainCircuit size={17}/></span><div><small>Movimentação ambígua</small><h2>Sugestão por IA</h2></div></div><p>A IA recebe somente a descrição desta movimentação e não salva nada automaticamente.</p>{!aiSuggestion && <button className="secondary" onClick={() => void requestSuggestion()} disabled={aiBusy}>{aiBusy ? <span className="mini-loader"/> : <Sparkles size={15}/>} {aiBusy ? 'Analisando…' : 'Sugerir com IA'}</button>}{aiError && <div className="ai-error"><span>{aiError}</span><button className="text-button" onClick={() => void requestSuggestion()}>Tentar novamente</button></div>}{aiSuggestion && <div className="suggestion-box"><div><b>{aiSuggestion.suggestedCategory}</b><span>{aiSuggestion.confidence}% de confiança</span></div><p>{aiSuggestion.reason}</p><button className="secondary" onClick={() => setCategory(aiSuggestion.suggestedCategory)}><Check size={15}/>Usar como seleção</button></div>}</section>}<section className="surface"><small>Categoria</small><h2>{tx.category || 'Escolha uma categoria'}</h2><label className="field"><span>Categoria</span><select value={category} onChange={e => setCategory(e.target.value)}>{categories.map(c => <option key={c}>{c}</option>)}</select></label><label className="rule-check"><input type="checkbox" checked={rule} onChange={e => setRule(e.target.checked)}/><span><b>Usar nas próximas semelhantes</b><small>Cria uma regra pelo estabelecimento.</small></span></label><button className="primary" onClick={() => onSave(tx.id, category, rule)}><Check size={17}/>{hasNextPending ? 'Salvar e ver próxima' : 'Salvar e concluir revisão'}</button></section></main></div>;
 }
