@@ -4,35 +4,8 @@ on:
   push:
   pull_request:
 
-permissions:
-  contents: write
-
 jobs:
-  apply-final-app-stability:
-    if: github.event_name == 'push' && github.event.head_commit.message == 'chore: apply final app stabilization'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - run: node scripts/apply-final-app-stability.mjs
-      - run: git diff --check
-      - name: Commit deterministic patch and restore CI
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git checkout origin/main -- .github/workflows/ci.yml
-          git rm scripts/apply-final-app-stability.mjs .github/workflows/apply-final-app-stability.yml
-          git add src/App.tsx .github/workflows/ci.yml
-          git diff --cached --check
-          git commit -m "feat: stabilize final app flow"
-          git push origin HEAD:${GITHUB_REF_NAME}
-
   verify:
-    if: github.event_name != 'push' || github.event.head_commit.message != 'chore: apply final app stabilization'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
