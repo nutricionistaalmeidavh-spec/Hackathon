@@ -142,11 +142,11 @@ export function PlannerPage({ state, budgetHealth, hasProAccess, demoMode, onCha
   ] as const;
 
   return <section className="planner-page">
-    <header className="planner-heading"><span>{demoMode ? 'Planejador · Demo Pro' : 'Planejar'}</span><h1>Converse sobre a vida que seu dinheiro precisa sustentar.</h1><p>O sistema usa sua realidade financeira, confirma o que entendeu e calcula cenários sem transformar a conversa em formulários.</p></header>
+    <header className="planner-heading"><span>{demoMode ? 'Planejador · Demo Pro' : 'Planejar'}</span><h1>O que você quer que seu dinheiro permita?</h1><p>Converse sobre objetivos e prioridades. O sistema usa sua realidade financeira, confirma o que entendeu e só então transforma isso em plano.</p></header>
 
-    <div className="planner-health-grid">{healthCards.map(([label, value, ref]) => <article key={label}><span>{label}</span><strong>{value === null ? '—' : `${value}%`}</strong><small>{ref}</small></article>)}</div>
+    <div className="planner-health-grid planner-health-compact">{healthCards.map(([label, value, ref]) => <article key={label}><span>{label}</span><strong>{value === null ? '—' : `${value}%`}</strong><small>{ref}</small></article>)}</div>
 
-    <article className="planner-conversation"><div className="planner-section-title"><BrainCircuit size={19}/><div><span>Sessão de planejamento</span><strong>{deterministicPrompt.stage}</strong></div></div>
+    <article className="planner-conversation planner-primary-surface"><div className="planner-section-title"><BrainCircuit size={19}/><div><span>Sessão de planejamento</span><strong>{deterministicPrompt.stage}</strong></div></div>
       <div className="planner-thread">{state.messages.map(message => <div key={message.id} className={`planner-message ${message.role}`}><span>{message.role === 'assistant' ? 'Where’s the Money' : 'Você'}</span><p>{message.text}</p></div>)}</div>
       {pending.length > 0 && <div className="planner-confirmations"><span>Confirmar antes de salvar no plano</span>{pending.map((fact, index) => <button key={`${fact.label}-${index}`} onClick={() => confirmCandidate(fact)}><div><strong>{fact.label}</strong>{fact.value !== undefined && <small>{String(fact.value)}</small>}</div><span><Check size={15}/>Confirmar</span></button>)}</div>}
       {quickReplies.length > 0 && <div className="planner-quick">{quickReplies.map(reply => <button key={reply} onClick={() => void send(reply)}>{reply}</button>)}</div>}
@@ -158,22 +158,40 @@ export function PlannerPage({ state, budgetHealth, hasProAccess, demoMode, onCha
     <article className="planner-plan-card"><div className="planner-section-title"><Target size={19}/><div><span>Seu plano</span><strong>{state.goals.length} objetivos confirmados</strong></div></div>
       <div className="planner-goals">{state.goals.length ? state.goals.map(goal => <div key={goal.id}><div><strong>{goal.title}</strong><small>{goal.targetDate || goal.notes || 'Objetivo confirmado na conversa'}</small></div>{goal.monthlyContribution ? <b>{brl(goal.monthlyContribution)}/mês</b> : <span>definindo aporte</span>}</div>) : <p>Seus objetivos aparecem aqui conforme você os confirma na conversa.</p>}</div>
       {capacity > 0 && <div className="planner-capacity"><span>Capacidade liberada pelos ajustes confirmados</span><strong>{brl(capacity)}/mês</strong></div>}
-      {allocationScenarios[0]?.allocations.length > 0 && <div className="planner-scenarios"><span>Cenários de divisão</span>{allocationScenarios.map(scenario => <div key={scenario.id}><strong>{scenario.label}</strong>{scenario.allocations.map(item => <small key={item.goalId}>{state.goals.find(goal => goal.id === item.goalId)?.title || item.goalId}: {brl(item.amount)}/mês</small>)}</div>)}</div>}
     </article>
 
-    <article className="planner-buckets"><div className="planner-section-title"><CircleDollarSign size={19}/><div><span>Organização mensal</span><strong>50/30/20 é só o ponto de partida</strong></div></div><p>Altere as referências ou crie categorias próprias. Nada é normalizado sem você perceber.</p>
-      <div className="planner-bucket-list">{state.buckets.map(bucket => <label key={bucket.id}><span>{bucket.label}<small>{bucket.userDefined ? 'personalizada' : 'referência inicial'}</small></span><input type="number" min="0" step="1" value={bucket.targetPercent ?? ''} onChange={event => updateBucket(bucket, Math.max(0, Number(event.target.value) || 0))}/><b>%</b></label>)}</div>
-      <div className={`planner-total ${planTargets.valid ? '' : 'invalid'}`}><span>Total planejado</span><strong>{planTargets.totalPercent}%</strong>{!planTargets.valid && <small>Reduza os percentuais: o plano ultrapassa 100%.</small>}</div>
-      <div className="planner-add-bucket"><input value={customLabel} onChange={event => setCustomLabel(event.target.value)} placeholder="Nova categoria"/><input type="number" value={customPercent} onChange={event => setCustomPercent(event.target.value)} placeholder="%"/><button onClick={addBucket}><Plus size={15}/>Adicionar</button></div>
-    </article>
+    <section className="planner-advanced" aria-label="Ferramentas avançadas do plano">
+      <div className="planner-advanced-heading"><small>Quando você precisar aprofundar</small><h2>Ferramentas do plano</h2><p>Abra apenas a parte que ajuda na decisão atual. Seus cálculos e dados continuam os mesmos.</p></div>
 
-    <article className="planner-market"><div className="planner-section-title"><Search size={19}/><div><span>Pesquisar um caminho</span><strong>Digite do jeito que você conhece</strong></div></div><p>Itaúsa, ITSA4, Bitcoin, Tesouro IPCA, financiamento, consórcio… A IA identifica e pesquisa; o motor faz as contas.</p>
-      <div className="planner-market-search"><input value={marketQuery} onChange={event => setMarketQuery(event.target.value)} placeholder="Ex.: Itaúsa"/><button className="primary" onClick={() => void doMarketResearch()} disabled={marketBusy}><Search size={16}/>{marketBusy ? 'Pesquisando…' : 'Pesquisar'}</button></div>
-      {marketError && <p className="planner-inline-error">{marketError}</p>}
-      {market && <div className="market-result"><div className="market-identity"><div><small>{market.entity.assetClass}{market.entity.exchange ? ` · ${market.entity.exchange}` : ''}</small><h2>{market.entity.name}</h2>{market.entity.symbol && <b>{market.entity.symbol}</b>}</div><span>{new Date(market.fetchedAt).toLocaleString('pt-BR')}</span></div><p>{market.summary}</p><div className="market-facts">{market.facts.slice(0, 6).map(fact => <div key={`${fact.key}-${fact.value}`}><span>{fact.label}</span><strong>{fact.value}</strong>{fact.sourceUrl && <a href={fact.sourceUrl} target="_blank" rel="noreferrer">{fact.sourceTitle || 'Fonte'} ↗</a>}</div>)}</div>
-        <div className="market-simulation"><div className="market-sim-heading"><Sparkles size={17}/><strong>Simular uma premissa</strong></div><div className="market-sim-inputs"><label>Inicial (R$)<input value={initialAmount} onChange={event => setInitialAmount(event.target.value)} inputMode="decimal"/></label><label>Aporte/mês<input value={monthlyContribution} onChange={event => setMonthlyContribution(event.target.value)} inputMode="decimal"/></label><label>Meses<input value={months} onChange={event => setMonths(event.target.value)} inputMode="numeric"/></label><label>Retorno hipotético a.a. (%)<input value={annualRate} onChange={event => setAnnualRate(event.target.value)} inputMode="decimal"/></label></div><div className="market-sim-result"><span>Total aportado <b>{brl(projection.totalContributed)}</b></span><span>Patrimônio matemático <b>{brl(projection.endingAmount)}</b></span><span>Diferença pela premissa <b>{brl(projection.earnings)}</b></span></div><p className="market-disclaimer">{market.disclaimer || INVESTMENT_SIMULATION_DISCLAIMER}</p></div>
-      </div>}
-      {!market && <p className="market-disclaimer">{INVESTMENT_SIMULATION_DISCLAIMER}</p>}
-    </article>
+      <details className="planner-disclosure">
+        <summary><span className="planner-disclosure-icon"><CircleDollarSign size={17}/></span><span><b>Organizar orçamento</b><small>Ajustar referências e categorias mensais</small></span><ChevronRight size={17}/></summary>
+        <article className="planner-buckets planner-disclosure-body"><div className="planner-section-title"><CircleDollarSign size={19}/><div><span>Organização mensal</span><strong>50/30/20 é só o ponto de partida</strong></div></div><p>Altere as referências ou crie categorias próprias. Nada é normalizado sem você perceber.</p>
+          <div className="planner-bucket-list">{state.buckets.map(bucket => <label key={bucket.id}><span>{bucket.label}<small>{bucket.userDefined ? 'personalizada' : 'referência inicial'}</small></span><input type="number" min="0" step="1" value={bucket.targetPercent ?? ''} onChange={event => updateBucket(bucket, Math.max(0, Number(event.target.value) || 0))}/><b>%</b></label>)}</div>
+          <div className={`planner-total ${planTargets.valid ? '' : 'invalid'}`}><span>Total planejado</span><strong>{planTargets.totalPercent}%</strong>{!planTargets.valid && <small>Reduza os percentuais: o plano ultrapassa 100%.</small>}</div>
+          <div className="planner-add-bucket"><input value={customLabel} onChange={event => setCustomLabel(event.target.value)} placeholder="Nova categoria"/><input type="number" value={customPercent} onChange={event => setCustomPercent(event.target.value)} placeholder="%"/><button onClick={addBucket}><Plus size={15}/>Adicionar</button></div>
+        </article>
+      </details>
+
+      <details className="planner-disclosure">
+        <summary><span className="planner-disclosure-icon"><Target size={17}/></span><span><b>Comparar cenários</b><small>Dividir a capacidade entre objetivos</small></span><ChevronRight size={17}/></summary>
+        <div className="planner-disclosure-body planner-scenario-disclosure">
+          {allocationScenarios[0]?.allocations.length > 0 ? <div className="planner-scenarios"><span>Cenários de divisão</span>{allocationScenarios.map(scenario => <div key={scenario.id}><strong>{scenario.label}</strong>{scenario.allocations.map(item => <small key={item.goalId}>{state.goals.find(goal => goal.id === item.goalId)?.title || item.goalId}: {brl(item.amount)}/mês</small>)}</div>)}</div> : <p className="planner-disclosure-empty">Confirme objetivos com aporte mensal para comparar formas de dividir sua capacidade.</p>}
+        </div>
+      </details>
+
+      <details className="planner-disclosure">
+        <summary><span className="planner-disclosure-icon"><Search size={17}/></span><span><b>Pesquisar ativo/caminho</b><small>Contexto atual com fontes quando a IA estiver configurada</small></span><ChevronRight size={17}/></summary>
+        <article className="planner-market planner-disclosure-body"><div className="planner-section-title"><Search size={19}/><div><span>Pesquisar um caminho</span><strong>Digite do jeito que você conhece</strong></div></div><p>Itaúsa, ITSA4, Bitcoin, Tesouro IPCA, financiamento, consórcio… A IA identifica e pesquisa; o motor continua responsável pelas contas.</p>
+          <div className="planner-market-search"><input value={marketQuery} onChange={event => setMarketQuery(event.target.value)} placeholder="Ex.: Itaúsa"/><button className="primary" onClick={() => void doMarketResearch()} disabled={marketBusy}><Search size={16}/>{marketBusy ? 'Pesquisando…' : 'Pesquisar'}</button></div>
+          {marketError && <p className="planner-inline-error">{marketError}</p>}
+          {market && <div className="market-result"><div className="market-identity"><div><small>{market.entity.assetClass}{market.entity.exchange ? ` · ${market.entity.exchange}` : ''}</small><h2>{market.entity.name}</h2>{market.entity.symbol && <b>{market.entity.symbol}</b>}</div><span>{new Date(market.fetchedAt).toLocaleString('pt-BR')}</span></div><p>{market.summary}</p><div className="market-facts">{market.facts.slice(0, 6).map(fact => <div key={`${fact.key}-${fact.value}`}><span>{fact.label}</span><strong>{fact.value}</strong>{fact.sourceUrl && <a href={fact.sourceUrl} target="_blank" rel="noreferrer">{fact.sourceTitle || 'Fonte'} ↗</a>}</div>)}</div></div>}
+        </article>
+      </details>
+
+      <details className="planner-disclosure">
+        <summary><span className="planner-disclosure-icon"><Sparkles size={17}/></span><span><b>Simular</b><small>Testar uma premissa matemática, sem previsão</small></span><ChevronRight size={17}/></summary>
+        <div className="planner-disclosure-body"><div className="market-simulation planner-standalone-simulation"><div className="market-sim-heading"><Sparkles size={17}/><strong>Simular uma premissa</strong></div><div className="market-sim-inputs"><label>Inicial (R$)<input value={initialAmount} onChange={event => setInitialAmount(event.target.value)} inputMode="decimal"/></label><label>Aporte/mês<input value={monthlyContribution} onChange={event => setMonthlyContribution(event.target.value)} inputMode="decimal"/></label><label>Meses<input value={months} onChange={event => setMonths(event.target.value)} inputMode="numeric"/></label><label>Retorno hipotético a.a. (%)<input value={annualRate} onChange={event => setAnnualRate(event.target.value)} inputMode="decimal"/></label></div><div className="market-sim-result"><span>Total aportado <b>{brl(projection.totalContributed)}</b></span><span>Patrimônio matemático <b>{brl(projection.endingAmount)}</b></span><span>Diferença pela premissa <b>{brl(projection.earnings)}</b></span></div><p className="market-disclaimer">{market?.disclaimer || INVESTMENT_SIMULATION_DISCLAIMER}</p></div></div>
+      </details>
+    </section>
   </section>;
 }
