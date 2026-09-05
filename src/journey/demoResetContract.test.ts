@@ -14,4 +14,9 @@ describe('demo restart contract', () => {
     expect(resetSource).not.toContain('realStateRef.current =');
     expect(source).toContain('onRestart={resetDemo}');
   });
+
+  it('does not advance the judge guide to Radar until both Inbox decisions are resolved', () => {
+    const source = readFileSync(new URL('../App.tsx', import.meta.url), 'utf8');
+    expect(source).toContain('touchedReview: demoTouchedReview && attention.length === 0');
+  });
 });
