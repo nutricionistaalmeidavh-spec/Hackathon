@@ -74,6 +74,7 @@ export function createDemoState(): DemoState {
     tx('market_2', '2026-08-22', 19230, 'debit', 'SUPERMERCADO PONTO CERTO', 'Supermercado Ponto Certo', 'supermarket'),
     tx('transport_1', '2026-08-25', 3740, 'debit', 'UBER TRIP', 'Uber', 'rideshare'),
     tx('ambiguous', '2026-08-27', 14780, 'debit', 'PIX M J SILVA 9834', 'M J Silva'),
+    tx('ambiguous_2', '2026-08-28', 9230, 'debit', 'PIX L N COSTA 2719', 'L N Costa'),
     tx('pharmacy', '2026-08-29', 8460, 'debit', 'DROGARIA SAO PAULO', 'Drogaria Sao Paulo', 'pharmacy'),
   ];
   return {

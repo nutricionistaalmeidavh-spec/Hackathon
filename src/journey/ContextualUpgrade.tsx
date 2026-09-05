@@ -8,8 +8,8 @@ export function ContextualUpgrade({ open, title, description, benefits, onContin
 }) {
   if (!open) return null;
   return <div className="upgrade-backdrop" role="presentation" onClick={onClose}>
-    <section className="contextual-upgrade" role="dialog" aria-modal="true" aria-labelledby="upgrade-title" onClick={event => event.stopPropagation()}>
-      <button className="upgrade-close" aria-label="Fechar" onClick={onClose}>×</button>
+    <section className="contextual-upgrade" role="dialog" aria-modal="true" aria-labelledby="upgrade-title" onKeyDown={event => { if (event.key === 'Escape') onClose(); }} onClick={event => event.stopPropagation()}>
+      <button className="upgrade-close" aria-label="Fechar" onClick={onClose} autoFocus>×</button>
       <small>Plano Pro</small>
       <h2 id="upgrade-title">{title}</h2>
       <p>{description}</p>

@@ -1,0 +1,56 @@
+.toast .feedback-icon{
+  width:24px;
+  height:24px;
+  flex:0 0 24px;
+  border-radius:50%;
+  display:grid;
+  place-items:center;
+}
+
+.toast.success .feedback-icon{
+  color:var(--positive);
+  background:rgba(102,214,174,.12);
+}
+
+.toast.error{
+  border-color:rgba(255,123,117,.32);
+}
+
+.toast.error .feedback-icon{
+  color:var(--risk);
+  background:rgba(255,123,117,.12);
+}
+
+.toast.info .feedback-icon{
+  color:var(--accent);
+  background:rgba(124,140,255,.12);
+}
+
+.demo-progress-actions{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  flex-wrap:wrap;
+}
+
+.demo-progress-actions .demo-progress-next,
+.demo-progress-actions .demo-progress-restart{
+  padding-inline:0;
+}
+
+.demo-progress-restart{
+  color:var(--muted);
+}
+
+@media(max-width:480px){
+  .demo-progress-actions{
+    align-items:stretch;
+    flex-direction:column;
+    gap:2px;
+  }
+
+  .demo-progress-actions .text-button{
+    justify-content:flex-start;
+  }
+}
