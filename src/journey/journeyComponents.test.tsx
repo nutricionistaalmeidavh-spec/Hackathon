@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { JourneyCard } from './JourneyCard';
@@ -21,12 +22,19 @@ describe('journey presentation components', () => {
     expect(html).not.toContain('localStorage');
   });
 
-  it('renders all four demo guide steps and highlights current progress', () => {
-    const html = renderToStaticMarkup(<DemoProgress step={3}/>);
+  it('supports Escape dismissal and predictable initial focus in the upgrade dialog', () => {
+    const source = readFileSync(new URL('./ContextualUpgrade.tsx', import.meta.url), 'utf8');
+    expect(source).toContain("event.key === 'Escape'");
+    expect(source).toContain('autoFocus');
+  });
+
+  it('renders all four demo guide steps and offers a one-tap restart', () => {
+    const html = renderToStaticMarkup(<DemoProgress step={3} onRestart={() => {}}/>);
     expect(html).toContain('Revisar movimentações');
     expect(html).toContain('Ver o Radar');
     expect(html).toContain('Entender o ponto de atenção');
     expect(html).toContain('Montar o plano');
     expect(html).toContain('3 de 4');
+    expect(html).toContain('Reiniciar demo');
   });
 });
