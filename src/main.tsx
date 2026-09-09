@@ -9,5 +9,6 @@ import './features/planner/planner.css';
 import './journey.css';
 import './stability/stability.css';
 import './motion-kit.css';
+import './delivery-4-6.css';
 
 createRoot(document.getElementById('root')!).render(<StrictMode><App /></StrictMode>);
