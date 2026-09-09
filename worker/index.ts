@@ -3,6 +3,7 @@ import { handleAiCategorize } from './routes/ai/categorize';
 import { handleAiExplain } from './routes/ai/explain';
 import { handleAiMarketResearch } from './routes/ai/market-research';
 import { handleAiPlannerTurn } from './routes/ai/planner-turn';
+import { handleIntegrationsStatus } from './routes/integrations/status';
 import { handleConnectToken } from './routes/open-finance/connect-token';
 import { handleData } from './routes/open-finance/data';
 import { handleStatus } from './routes/open-finance/status';
@@ -15,6 +16,7 @@ type RouteDefinition = {
 };
 
 const routes: Record<string, RouteDefinition> = {
+  '/api/integrations/status': { method: 'GET', handler: handleIntegrationsStatus },
   '/api/open-finance/status': { method: 'GET', handler: handleStatus },
   '/api/open-finance/connect-token': { method: 'POST', handler: handleConnectToken },
   '/api/open-finance/data': { method: 'POST', handler: handleData },
