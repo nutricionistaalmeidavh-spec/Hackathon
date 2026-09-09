@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  AccessibilityInfo,
   ActivityIndicator,
+  Animated,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -31,6 +35,13 @@ import {
   summarizePortableState,
   type PortableTransaction,
 } from './src/portable-state';
+import {
+  derivePortableLoadState,
+  inboxEmptyCopy,
+  navAccessibilityLabel,
+  transactionAccessibilityLabel,
+  type InboxFilter,
+} from './src/experience';
 import {
   buildNativeDataCommandScript,
   buildNativeSubscriptionEventScript,
@@ -64,7 +75,6 @@ const categories = [
 
 type AppTab = 'today' | 'inbox' | 'radar' | 'planner' | 'more';
 type NativeSurface = 'today' | 'inbox' | 'web';
-type InboxFilter = 'attention' | 'resolved' | 'auto';
 
 const brl = (cents: number) => new Intl.NumberFormat('pt-BR', {
   style: 'currency',
@@ -87,8 +97,15 @@ export default function App() {
   const [inboxFilter, setInboxFilter] = useState<InboxFilter>('attention');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState('Outros');
+  const [webLoading, setWebLoading] = useState(true);
+  const [webLoadError, setWebLoadError] = useState(false);
+  const [bridgeTimedOut, setBridgeTimedOut] = useState(false);
+  const [reduceMotion, setReduceMotion] = useState(false);
+  const [feedback, setFeedback] = useState('');
   const webViewRef = useRef<WebView>(null);
   const webHandoffRef = useRef<'import' | null>(null);
+  const surfaceOpacity = useRef(new Animated.Value(1)).current;
+  const surfaceTranslate = useRef(new Animated.Value(0)).current;
 
   const summary = useMemo(() => summarizePortableState(portable), [portable]);
   const attention = useMemo(
@@ -96,10 +113,71 @@ export default function App() {
     [portable.txs],
   );
   const selected = selectedId ? portable.txs.find(tx => tx.id === selectedId) : undefined;
+  const portableLoadState = derivePortableLoadState({
+    portableReady,
+    webLoadError: webLoadError || bridgeTimedOut,
+  });
 
   useEffect(() => {
     setSelectedCategory(selected?.category || 'Outros');
   }, [selected?.id, selected?.category]);
+
+  useEffect(() => {
+    let mounted = true;
+    void AccessibilityInfo.isReduceMotionEnabled().then(enabled => {
+      if (mounted) setReduceMotion(enabled);
+    });
+    const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
+    return () => {
+      mounted = false;
+      subscription.remove();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (surface === 'web') return;
+    if (reduceMotion) {
+      surfaceOpacity.setValue(1);
+      surfaceTranslate.setValue(0);
+      return;
+    }
+
+    surfaceOpacity.setValue(0);
+    surfaceTranslate.setValue(8);
+    Animated.parallel([
+      Animated.timing(surfaceOpacity, {
+        toValue: 1,
+        duration: 180,
+        useNativeDriver: true,
+      }),
+      Animated.timing(surfaceTranslate, {
+        toValue: 0,
+        duration: 220,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [activeTab, surface, reduceMotion, surfaceOpacity, surfaceTranslate]);
+
+  useEffect(() => {
+    if (portableReady || webLoadError || webLoading) {
+      setBridgeTimedOut(false);
+      return;
+    }
+
+    const timer = setTimeout(() => setBridgeTimedOut(true), 6000);
+    return () => clearTimeout(timer);
+  }, [portableReady, webLoadError, webLoading]);
+
+  useEffect(() => {
+    if (!feedback) return;
+    const timer = setTimeout(() => setFeedback(''), 2600);
+    return () => clearTimeout(timer);
+  }, [feedback]);
+
+  const showFeedback = (message: string) => {
+    setFeedback(message);
+    AccessibilityInfo.announceForAccessibility(message);
+  };
 
   const sendToWeb = (payload: NativeSubscriptionPayload) => {
     webViewRef.current?.injectJavaScript(buildNativeSubscriptionEventScript(payload));
@@ -246,11 +324,14 @@ export default function App() {
     if (message.kind === 'portable-state') {
       setPortable(message.state);
       setPortableReady(true);
+      setWebLoadError(false);
+      setBridgeTimedOut(false);
       if (webHandoffRef.current === 'import' && message.state.txs.length > 0) {
         webHandoffRef.current = null;
         setInboxFilter('attention');
         setActiveTab('inbox');
         setSurface('inbox');
+        showFeedback('Extrato importado. Revise apenas o que ainda precisa de decisão.');
       }
       return;
     }
@@ -282,6 +363,13 @@ export default function App() {
     setSurface('web');
   };
 
+  const retryWebBootstrap = () => {
+    setWebLoadError(false);
+    setBridgeTimedOut(false);
+    setWebLoading(true);
+    webViewRef.current?.reload();
+  };
+
   const openImport = () => {
     webHandoffRef.current = 'import';
     setActiveTab('today');
@@ -299,6 +387,7 @@ export default function App() {
       id: selected.id,
       category: selectedCategory,
     });
+    showFeedback(`${selected.description} salvo em ${selectedCategory}.`);
 
     if (nextAttention) {
       setSelectedId(nextAttention.id);
@@ -308,19 +397,36 @@ export default function App() {
   };
 
   const renderNativeSurface = () => {
-    if (!portableReady) {
+    if (portableLoadState === 'loading') {
       return (
-        <View style={styles.centerState}>
-          <ActivityIndicator />
-          <Text style={styles.muted}>Sincronizando seu financeiro…</Text>
-        </View>
+        <ExperienceState
+          loading
+          title={webLoading ? 'Abrindo seu financeiro…' : 'Sincronizando seus dados…'}
+          description="Estamos conectando o shell Android ao seu estado financeiro."
+        />
+      );
+    }
+
+    if (portableLoadState === 'error') {
+      return (
+        <ExperienceState
+          title="Não foi possível sincronizar agora"
+          description="O conteúdo web não respondeu. Seus dados não foram apagados; tente carregar novamente."
+          actionLabel="Tentar novamente"
+          onAction={retryWebBootstrap}
+        />
       );
     }
 
     if (surface === 'inbox') {
       const visible = filteredTransactions(portable.txs, inboxFilter);
+      const emptyCopy = inboxEmptyCopy(inboxFilter);
       return (
-        <ScrollView contentContainerStyle={styles.page}>
+        <ScrollView
+          contentContainerStyle={styles.page}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
           <PageHeader
             eyebrow={portable.demoMode ? 'Demo Pro · Inbox' : 'Inbox · fila de decisões'}
             title={summary.attention ? `${summary.attention} para revisar` : 'Tudo revisado'}
@@ -328,23 +434,23 @@ export default function App() {
               ? `${summary.automated} organizadas automaticamente · ${summary.resolved} já confirmadas.`
               : 'As pendências acabaram. O Radar já pode usar seu histórico organizado.'}
           />
-          <View style={styles.segmentRow}>
+          <View style={styles.segmentRow} accessibilityRole="tablist">
             <Segment label={`Revisar · ${summary.attention}`} active={inboxFilter === 'attention'} onPress={() => setInboxFilter('attention')} />
             <Segment label={`Resolvidas · ${summary.resolved}`} active={inboxFilter === 'resolved'} onPress={() => setInboxFilter('resolved')} />
             <Segment label={`Auto · ${summary.automated}`} active={inboxFilter === 'auto'} onPress={() => setInboxFilter('auto')} />
           </View>
-          {inboxFilter === 'attention' && !visible.length ? (
-            <View style={styles.heroCard}>
-              <Text style={styles.cardEyebrow}>Revisão concluída</Text>
-              <Text style={styles.cardTitle}>Seu dinheiro está organizado.</Text>
-              <Text style={styles.cardText}>Veja o que vem pela frente com a projeção do Radar.</Text>
-              <PrimaryButton label="Abrir Radar" onPress={() => navigate('radar')} />
+          {!visible.length ? (
+            <View style={styles.heroCard} accessible accessibilityLabel={`${emptyCopy.title} ${emptyCopy.description}`}>
+              <Text style={styles.cardEyebrow}>{emptyCopy.eyebrow}</Text>
+              <Text style={styles.cardTitle}>{emptyCopy.title}</Text>
+              <Text style={styles.cardText}>{emptyCopy.description}</Text>
+              {inboxFilter === 'attention' ? <PrimaryButton label="Abrir Radar" onPress={() => navigate('radar')} /> : null}
             </View>
           ) : (
             <View style={styles.listCard}>
-              {visible.length ? visible.map(tx => (
+              {visible.map(tx => (
                 <TransactionRow key={tx.id} tx={tx} onPress={() => setSelectedId(tx.id)} />
-              )) : <Text style={styles.emptyText}>Nenhuma movimentação neste estado.</Text>}
+              ))}
             </View>
           )}
         </ScrollView>
@@ -352,7 +458,11 @@ export default function App() {
     }
 
     return (
-      <ScrollView contentContainerStyle={styles.page}>
+      <ScrollView
+        contentContainerStyle={styles.page}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.brandRow}>
           <View>
             <Text style={styles.brandOverline}>ARTISYS</Text>
@@ -374,12 +484,18 @@ export default function App() {
               <Text style={styles.cardEyebrow}>Começar agora · Free</Text>
               <Text style={styles.cardTitle}>Adicionar extrato grátis</Text>
               <Text style={styles.cardText}>OFX, CSV, TXT ou Excel. A importação continua no web app enquanto Hoje e Inbox migram para nativo.</Text>
-              <PrimaryButton label="Adicionar extrato" onPress={openImport} />
+              <PrimaryButton label="Adicionar extrato" onPress={openImport} accessibilityHint="Abre a importação de extrato na experiência web" />
             </View>
-            <Pressable style={styles.secondaryCard} onPress={() => {
-              sendDataCommand({ type: 'WTM_PORTABLE_NAVIGATE', tab: 'today' });
-              setSurface('web');
-            }}>
+            <Pressable
+              style={({ pressed }) => [styles.secondaryCard, pressed && styles.pressed]}
+              onPress={() => {
+                sendDataCommand({ type: 'WTM_PORTABLE_NAVIGATE', tab: 'today' });
+                setSurface('web');
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Abrir experiência completa"
+              accessibilityHint="Abre Open Finance, integrações e Demo Pro"
+            >
               <Text style={styles.cardEyebrow}>Experiência completa</Text>
               <Text style={styles.secondaryTitle}>Open Finance e Demo Pro</Text>
               <Text style={styles.cardText}>Acesse as integrações e a demonstração completa sem duplicar lógica no app nativo.</Text>
@@ -427,6 +543,7 @@ export default function App() {
         <View style={styles.content}>
           <View
             pointerEvents={surface === 'web' ? 'auto' : 'none'}
+            importantForAccessibility={surface === 'web' ? 'auto' : 'no-hide-descendants'}
             style={[styles.webContainer, surface !== 'web' && styles.webHidden]}
           >
             <WebView
@@ -434,29 +551,61 @@ export default function App() {
               source={{ uri: mobileConfig.webAppUrl }}
               style={styles.webView}
               onMessage={(event) => handleWebMessage(event.nativeEvent.data)}
+              onLoadStart={() => {
+                setWebLoading(true);
+                setWebLoadError(false);
+                setBridgeTimedOut(false);
+              }}
               onLoadEnd={() => {
+                setWebLoading(false);
                 emitCurrentState();
                 sendDataCommand({ type: 'WTM_PORTABLE_REQUEST_STATE' });
               }}
+              onError={() => {
+                setWebLoading(false);
+                setWebLoadError(true);
+              }}
+              onHttpError={() => {
+                setWebLoading(false);
+                setWebLoadError(true);
+              }}
               startInLoadingState
               renderLoading={() => (
-                <View style={styles.centerState}>
-                  <ActivityIndicator />
-                  <Text style={styles.muted}>Carregando experiência completa…</Text>
-                </View>
+                <ExperienceState
+                  loading
+                  title="Carregando experiência completa…"
+                  description="Preparando Radar, Planejamento e integrações."
+                />
               )}
               renderError={() => (
-                <View style={styles.centerState}>
-                  <Text style={styles.errorTitle}>Não foi possível carregar o app</Text>
-                  <Text style={styles.muted}>Verifique a conexão e tente novamente.</Text>
-                </View>
+                <ExperienceState
+                  title="Não foi possível carregar o app"
+                  description="Verifique a conexão. Nenhum dado local foi apagado."
+                  actionLabel="Tentar novamente"
+                  onAction={retryWebBootstrap}
+                />
               )}
             />
           </View>
-          {surface !== 'web' ? renderNativeSurface() : null}
+          {surface !== 'web' ? (
+            <Animated.View
+              style={[
+                styles.nativeSurface,
+                { opacity: surfaceOpacity, transform: [{ translateY: surfaceTranslate }] },
+              ]}
+            >
+              {renderNativeSurface()}
+            </Animated.View>
+          ) : null}
         </View>
 
-        <View style={styles.bottomNav}>
+        {feedback ? (
+          <View pointerEvents="none" style={styles.feedbackBanner} accessible>
+            <Text accessibilityLiveRegion="polite" style={styles.feedbackText}>{feedback}</Text>
+          </View>
+        ) : null}
+
+        <View style={styles.bottomNav} accessibilityRole="tablist">
           <NavItem label="Hoje" active={activeTab === 'today'} onPress={() => navigate('today')} />
           <NavItem label="Inbox" active={activeTab === 'inbox'} badge={summary.attention || undefined} onPress={() => navigate('inbox')} />
           <NavItem label="Radar" active={activeTab === 'radar'} onPress={() => navigate('radar')} />
@@ -464,40 +613,95 @@ export default function App() {
           <NavItem label="Mais" active={activeTab === 'more'} onPress={() => navigate('more')} />
         </View>
 
-        <Modal visible={Boolean(selected)} transparent animationType="slide" onRequestClose={() => setSelectedId(null)}>
-          <View style={styles.modalBackdrop}>
-            <View style={styles.modalSheet}>
-              <View style={styles.modalHandle} />
+        <Modal
+          visible={Boolean(selected)}
+          transparent
+          animationType={reduceMotion ? 'none' : 'slide'}
+          onRequestClose={() => setSelectedId(null)}
+          accessibilityViewIsModal
+        >
+          <KeyboardAvoidingView
+            style={styles.modalBackdrop}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          >
+            <View
+              style={styles.modalSheet}
+              onAccessibilityEscape={() => setSelectedId(null)}
+              accessibilityLabel="Revisar categoria da movimentação"
+            >
+              <View style={styles.modalHandle} accessibilityElementsHidden />
               <Text style={styles.cardEyebrow}>Movimentação</Text>
               <Text numberOfLines={2} style={styles.modalTitle}>{selected?.description}</Text>
               <Text style={styles.modalAmount}>{selected ? `${selected.direction === 'debit' ? '−' : '+'}${brl(selected.amount)}` : ''}</Text>
               <Text style={styles.fieldLabel}>Categoria</Text>
-              <ScrollView style={styles.categoryList} contentContainerStyle={styles.categoryGrid}>
+              <ScrollView
+                style={styles.categoryList}
+                contentContainerStyle={styles.categoryGrid}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+              >
                 {categories.map(category => (
                   <Pressable
                     key={category}
                     onPress={() => setSelectedCategory(category)}
-                    style={[styles.categoryChip, selectedCategory === category && styles.categoryChipActive]}
+                    style={({ pressed }) => [
+                      styles.categoryChip,
+                      selectedCategory === category && styles.categoryChipActive,
+                      pressed && styles.pressed,
+                    ]}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: selectedCategory === category }}
+                    accessibilityLabel={category}
+                    hitSlop={2}
                   >
                     <Text style={[styles.categoryText, selectedCategory === category && styles.categoryTextActive]}>{category}</Text>
                   </Pressable>
                 ))}
               </ScrollView>
               <PrimaryButton label={attention.some(tx => tx.id !== selected?.id) ? 'Salvar e ver próxima' : 'Salvar e concluir revisão'} onPress={saveCategory} />
-              <Pressable style={styles.cancelButton} onPress={() => setSelectedId(null)}>
+              <Pressable
+                style={({ pressed }) => [styles.cancelButton, pressed && styles.pressed]}
+                onPress={() => setSelectedId(null)}
+                accessibilityRole="button"
+                accessibilityLabel="Cancelar revisão"
+                hitSlop={4}
+              >
                 <Text style={styles.cancelText}>Cancelar</Text>
               </Pressable>
             </View>
-          </View>
+          </KeyboardAvoidingView>
         </Modal>
       </SafeAreaView>
     </SafeAreaProvider>
   );
 }
 
+function ExperienceState({
+  loading = false,
+  title,
+  description,
+  actionLabel,
+  onAction,
+}: {
+  loading?: boolean;
+  title: string;
+  description: string;
+  actionLabel?: string;
+  onAction?: () => void;
+}) {
+  return (
+    <View style={styles.centerState} accessible accessibilityLabel={`${title}. ${description}`}>
+      {loading ? <ActivityIndicator accessibilityLabel="Carregando" /> : <View style={styles.errorMark}><Text style={styles.errorMarkText}>!</Text></View>}
+      <Text accessibilityLiveRegion={loading ? 'polite' : 'assertive'} style={styles.errorTitle}>{title}</Text>
+      <Text style={styles.muted}>{description}</Text>
+      {actionLabel && onAction ? <PrimaryButton label={actionLabel} onPress={onAction} /> : null}
+    </View>
+  );
+}
+
 function PageHeader({ eyebrow, title, description }: { eyebrow: string; title: string; description: string }) {
   return (
-    <View style={styles.heading}>
+    <View style={styles.heading} accessible accessibilityRole="header">
       <Text style={styles.eyebrow}>{eyebrow}</Text>
       <Text style={styles.headingTitle}>{title}</Text>
       <Text style={styles.headingText}>{description}</Text>
@@ -505,9 +709,24 @@ function PageHeader({ eyebrow, title, description }: { eyebrow: string; title: s
   );
 }
 
-function PrimaryButton({ label, onPress }: { label: string; onPress: () => void }) {
+function PrimaryButton({
+  label,
+  onPress,
+  accessibilityHint,
+}: {
+  label: string;
+  onPress: () => void;
+  accessibilityHint?: string;
+}) {
   return (
-    <Pressable style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]} onPress={onPress}>
+    <Pressable
+      style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityHint={accessibilityHint}
+      hitSlop={3}
+    >
       <Text style={styles.primaryButtonText}>{label}</Text>
     </Pressable>
   );
@@ -515,7 +734,14 @@ function PrimaryButton({ label, onPress }: { label: string; onPress: () => void 
 
 function Segment({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
   return (
-    <Pressable onPress={onPress} style={[styles.segment, active && styles.segmentActive]}>
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [styles.segment, active && styles.segmentActive, pressed && styles.pressed]}
+      accessibilityRole="tab"
+      accessibilityState={{ selected: active }}
+      accessibilityLabel={label}
+      hitSlop={2}
+    >
       <Text numberOfLines={1} style={[styles.segmentText, active && styles.segmentTextActive]}>{label}</Text>
     </Pressable>
   );
@@ -523,7 +749,7 @@ function Segment({ label, active, onPress }: { label: string; active: boolean; o
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <View style={styles.metricCard}>
+    <View style={styles.metricCard} accessible accessibilityLabel={`${label}: ${value}`}>
       <Text numberOfLines={1} style={styles.metricLabel}>{label}</Text>
       <Text numberOfLines={1} adjustsFontSizeToFit style={styles.metricValue}>{value}</Text>
     </View>
@@ -532,7 +758,13 @@ function Metric({ label, value }: { label: string; value: string }) {
 
 function TransactionRow({ tx, onPress }: { tx: PortableTransaction; onPress: () => void }) {
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [styles.txRow, pressed && styles.pressed]}>
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [styles.txRow, pressed && styles.pressed]}
+      accessibilityRole="button"
+      accessibilityLabel={transactionAccessibilityLabel(tx)}
+      accessibilityHint="Abre a revisão de categoria"
+    >
       <View style={styles.txMain}>
         <Text numberOfLines={1} style={styles.txTitle}>{tx.description}</Text>
         <Text numberOfLines={1} style={styles.txMeta}>{tx.category || 'Sem categoria'} · {tx.date}</Text>
@@ -547,7 +779,14 @@ function TransactionRow({ tx, onPress }: { tx: PortableTransaction; onPress: () 
 
 function NavItem({ label, active, badge, onPress }: { label: string; active: boolean; badge?: number; onPress: () => void }) {
   return (
-    <Pressable onPress={onPress} style={styles.navItem} accessibilityRole="button" accessibilityState={{ selected: active }}>
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [styles.navItem, pressed && styles.navPressed]}
+      accessibilityRole="tab"
+      accessibilityLabel={navAccessibilityLabel(label, badge)}
+      accessibilityState={{ selected: active }}
+      hitSlop={{ top: 2, bottom: 2, left: 2, right: 2 }}
+    >
       <View style={[styles.navDot, active && styles.navDotActive]}>{badge ? <Text style={styles.navBadge}>{badge > 9 ? '9+' : badge}</Text> : null}</View>
       <Text style={[styles.navLabel, active && styles.navLabelActive]}>{label}</Text>
     </Pressable>
@@ -557,12 +796,15 @@ function NavItem({ label, active, badge, onPress }: { label: string; active: boo
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#F6F8FC' },
   content: { flex: 1, position: 'relative' },
+  nativeSurface: { flex: 1 },
   webContainer: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: '#F6F8FC', zIndex: 2 },
   webHidden: { opacity: 0, width: 1, height: 1, right: undefined, bottom: undefined },
   webView: { flex: 1, backgroundColor: '#F6F8FC' },
-  centerState: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10, backgroundColor: '#F6F8FC', padding: 24 },
-  errorTitle: { fontSize: 18, fontWeight: '700', color: '#111827' },
-  muted: { color: '#667085', textAlign: 'center' },
+  centerState: { flex: 1, minHeight: 220, alignItems: 'center', justifyContent: 'center', gap: 10, backgroundColor: '#F6F8FC', padding: 24 },
+  errorMark: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FEF3F2' },
+  errorMarkText: { color: '#B42318', fontSize: 20, fontWeight: '900' },
+  errorTitle: { fontSize: 18, lineHeight: 24, fontWeight: '800', color: '#111827', textAlign: 'center' },
+  muted: { color: '#667085', textAlign: 'center', fontSize: 14, lineHeight: 20, maxWidth: 340 },
   page: { padding: 18, paddingBottom: 28, gap: 14 },
   brandRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 2, paddingBottom: 2 },
   brandOverline: { color: '#3157D5', fontSize: 10, fontWeight: '800', letterSpacing: 1.6 },
@@ -573,14 +815,14 @@ const styles = StyleSheet.create({
   headingTitle: { color: '#101828', fontSize: 29, lineHeight: 35, fontWeight: '800', letterSpacing: -0.7 },
   headingText: { color: '#667085', fontSize: 14, lineHeight: 21 },
   heroCard: { backgroundColor: '#FFFFFF', borderRadius: 22, borderWidth: 1, borderColor: '#E6EAF2', padding: 18, gap: 8, shadowColor: '#101828', shadowOpacity: 0.05, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 2 },
-  secondaryCard: { backgroundColor: '#EEF4FF', borderRadius: 20, borderWidth: 1, borderColor: '#D6E4FF', padding: 18, gap: 6 },
+  secondaryCard: { minHeight: 44, backgroundColor: '#EEF4FF', borderRadius: 20, borderWidth: 1, borderColor: '#D6E4FF', padding: 18, gap: 6 },
   cardEyebrow: { color: '#64748B', fontSize: 11, fontWeight: '800', letterSpacing: 0.5, textTransform: 'uppercase' },
   cardTitle: { color: '#101828', fontSize: 20, lineHeight: 25, fontWeight: '800' },
   secondaryTitle: { color: '#102A56', fontSize: 18, fontWeight: '800' },
   cardText: { color: '#667085', fontSize: 14, lineHeight: 20 },
-  primaryButton: { marginTop: 8, minHeight: 48, borderRadius: 14, backgroundColor: '#3157D5', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 18 },
+  primaryButton: { marginTop: 8, minHeight: 48, minWidth: 124, borderRadius: 14, backgroundColor: '#3157D5', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 18 },
   primaryButtonText: { color: '#FFFFFF', fontSize: 14, fontWeight: '800' },
-  pressed: { opacity: 0.72 },
+  pressed: { opacity: 0.78, transform: [{ scale: 0.985 }] },
   metricRow: { flexDirection: 'row', gap: 8 },
   metricCard: { flex: 1, minWidth: 0, backgroundColor: '#FFFFFF', borderRadius: 16, borderWidth: 1, borderColor: '#E8ECF3', paddingHorizontal: 11, paddingVertical: 13, gap: 5 },
   metricLabel: { color: '#7A8496', fontSize: 10, fontWeight: '700' },
@@ -594,19 +836,21 @@ const styles = StyleSheet.create({
   txAmount: { color: '#B42318', fontSize: 13, fontWeight: '800' },
   credit: { color: '#027A48' },
   txStatus: { color: '#667085', fontSize: 10, fontWeight: '700' },
-  emptyText: { paddingVertical: 22, textAlign: 'center', color: '#667085' },
   segmentRow: { flexDirection: 'row', gap: 6 },
-  segment: { flex: 1, minHeight: 38, borderRadius: 12, backgroundColor: '#EDEFF4', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
-  segmentActive: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#D7DDEA' },
-  segmentText: { color: '#7A8496', fontSize: 10, fontWeight: '700' },
-  segmentTextActive: { color: '#1F3A8A' },
+  segment: { flex: 1, minHeight: 44, borderRadius: 12, backgroundColor: '#EDEFF4', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
+  segmentActive: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#B8C4D8' },
+  segmentText: { color: '#667085', fontSize: 10, fontWeight: '700' },
+  segmentTextActive: { color: '#1F3A8A', fontWeight: '900' },
   bottomNav: { height: 68, flexDirection: 'row', alignItems: 'stretch', borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: '#DCE1EA', backgroundColor: '#FFFFFF', paddingHorizontal: 4 },
-  navItem: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 5 },
+  navItem: { flex: 1, minWidth: 44, alignItems: 'center', justifyContent: 'center', gap: 5 },
+  navPressed: { backgroundColor: '#F7F9FC' },
   navDot: { width: 22, height: 4, borderRadius: 999, backgroundColor: '#E4E8F0', alignItems: 'center', justifyContent: 'center' },
   navDotActive: { backgroundColor: '#3157D5' },
-  navBadge: { position: 'absolute', top: -17, right: -6, minWidth: 18, textAlign: 'center', overflow: 'hidden', borderRadius: 9, backgroundColor: '#E5484D', color: '#FFFFFF', fontSize: 9, fontWeight: '900', paddingHorizontal: 3, paddingVertical: 2 },
-  navLabel: { color: '#7A8496', fontSize: 10, fontWeight: '700' },
+  navBadge: { position: 'absolute', top: -17, right: -6, minWidth: 18, textAlign: 'center', overflow: 'hidden', borderRadius: 9, backgroundColor: '#D92D20', color: '#FFFFFF', fontSize: 9, fontWeight: '900', paddingHorizontal: 3, paddingVertical: 2 },
+  navLabel: { color: '#667085', fontSize: 10, fontWeight: '700' },
   navLabelActive: { color: '#1F3A8A', fontWeight: '900' },
+  feedbackBanner: { position: 'absolute', left: 16, right: 16, bottom: 78, zIndex: 30, borderRadius: 14, borderWidth: 1, borderColor: '#ABEFC6', backgroundColor: '#ECFDF3', paddingHorizontal: 14, paddingVertical: 11, shadowColor: '#101828', shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 3 },
+  feedbackText: { color: '#05603A', fontSize: 13, lineHeight: 18, fontWeight: '700', textAlign: 'center' },
   modalBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(15,23,42,0.38)' },
   modalSheet: { maxHeight: '86%', backgroundColor: '#FFFFFF', borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 20, gap: 10 },
   modalHandle: { width: 40, height: 4, borderRadius: 999, alignSelf: 'center', backgroundColor: '#D8DEE9', marginBottom: 4 },
@@ -615,10 +859,10 @@ const styles = StyleSheet.create({
   fieldLabel: { color: '#667085', fontSize: 12, fontWeight: '800', marginTop: 4 },
   categoryList: { maxHeight: 240 },
   categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, paddingVertical: 4 },
-  categoryChip: { borderRadius: 999, borderWidth: 1, borderColor: '#DCE2EC', backgroundColor: '#F8FAFC', paddingHorizontal: 11, paddingVertical: 8 },
+  categoryChip: { minHeight: 44, justifyContent: 'center', borderRadius: 999, borderWidth: 1, borderColor: '#D0D5DD', backgroundColor: '#F8FAFC', paddingHorizontal: 12, paddingVertical: 8 },
   categoryChipActive: { borderColor: '#3157D5', backgroundColor: '#EEF2FF' },
-  categoryText: { color: '#526070', fontSize: 12, fontWeight: '700' },
+  categoryText: { color: '#475467', fontSize: 12, fontWeight: '700' },
   categoryTextActive: { color: '#2442A5', fontWeight: '900' },
-  cancelButton: { minHeight: 42, alignItems: 'center', justifyContent: 'center' },
+  cancelButton: { minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   cancelText: { color: '#667085', fontSize: 13, fontWeight: '700' },
 });
