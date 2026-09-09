@@ -28,6 +28,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   android: {
     package: 'com.engenutri.wheresthemoney',
     predictiveBackGestureEnabled: false,
+    softwareKeyboardLayoutMode: 'resize',
   },
   extra: {
     ...(config.extra ?? {}),
