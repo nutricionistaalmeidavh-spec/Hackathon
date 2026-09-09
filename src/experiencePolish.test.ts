@@ -15,6 +15,16 @@ describe('experience polish layer', () => {
     expect(main.indexOf(polish)).toBeGreaterThan(main.indexOf(delivery));
   });
 
+  it('marks the Android shell so WebView screens can share its light visual language', () => {
+    const main = readSource('./main.tsx');
+    const css = readSource('./experience-polish.css');
+
+    expect(main).toContain("document.documentElement.dataset.nativeShell");
+    expect(css).toContain("html[data-native-shell='1']");
+    expect(css).toContain('--bg:#F6F8FC');
+    expect(css).toContain('--accent:#3157D5');
+  });
+
   it('covers focus, keyboard, touch targets and reduced motion', () => {
     const css = readSource('./experience-polish.css');
 
