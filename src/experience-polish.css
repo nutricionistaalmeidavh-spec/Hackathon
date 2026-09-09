@@ -133,6 +133,157 @@ button:disabled,
   min-height:44px;
 }
 
+/* The Android shell is light. Keep WebView-only Radar/Planner/More visually continuous
+   with native Hoje/Inbox without changing the standalone web product. */
+html[data-native-shell='1']{
+  color-scheme:light;
+  color:#101828;
+  background:#F6F8FC;
+  --bg:#F6F8FC;
+  --fg:#101828;
+  --muted:#667085;
+  --accent:#3157D5;
+  --positive:#027A48;
+  --warning:#B54708;
+  --risk:#B42318;
+  --surface:#FFFFFF;
+  --border:#E6EAF2;
+}
+
+html[data-native-shell='1'] body,
+html[data-native-shell='1'] #root{
+  background:#F6F8FC;
+  color:#101828;
+}
+
+html[data-native-shell='1'] .shell{
+  background:radial-gradient(circle at 16% -10%,rgba(49,87,213,.08),transparent 34%),#F6F8FC;
+}
+
+html[data-native-shell='1'] .app-header,
+html[data-native-shell='1'] .detail-header{
+  background:rgba(246,248,252,.94);
+  border-bottom-color:#E3E8F0;
+}
+
+html[data-native-shell='1'] .surface,
+html[data-native-shell='1'] .card,
+html[data-native-shell='1'] .radar-chart-card,
+html[data-native-shell='1'] .radar-balance-card,
+html[data-native-shell='1'] .radar-watch-card,
+html[data-native-shell='1'] .radar-why,
+html[data-native-shell='1'] .planner-health-grid article,
+html[data-native-shell='1'] .planner-conversation,
+html[data-native-shell='1'] .planner-plan-card,
+html[data-native-shell='1'] .planner-buckets,
+html[data-native-shell='1'] .planner-market,
+html[data-native-shell='1'] .planner-disclosure{
+  background:#FFFFFF;
+  border-color:#E6EAF2;
+  box-shadow:0 12px 34px rgba(16,24,40,.07);
+}
+
+html[data-native-shell='1'] .radar-journey-summary{
+  background:#FFFFFF;
+  border-color:#E6EAF2;
+}
+
+html[data-native-shell='1'] .radar-journey-summary.risk{
+  background:#FFF7F6;
+  border-color:#FECDCA;
+}
+
+html[data-native-shell='1'] .radar-journey-summary.healthy{
+  background:#F6FEF9;
+  border-color:#ABEFC6;
+}
+
+html[data-native-shell='1'] .secondary,
+html[data-native-shell='1'] .icon-button,
+html[data-native-shell='1'] .segments button,
+html[data-native-shell='1'] .planner-message.user,
+html[data-native-shell='1'] .planner-scenarios>div,
+html[data-native-shell='1'] .market-facts>div,
+html[data-native-shell='1'] .market-sim-result span{
+  background:#F8FAFC;
+  border-color:#E4E7EC;
+  color:#344054;
+}
+
+html[data-native-shell='1'] .segments button.active,
+html[data-native-shell='1'] .planner-message.assistant,
+html[data-native-shell='1'] .planner-quick button,
+html[data-native-shell='1'] .planner-pro-lock,
+html[data-native-shell='1'] .planner-confirmations button{
+  background:#EEF2FF;
+  border-color:#D9E0FF;
+  color:#2442A5;
+}
+
+html[data-native-shell='1'] .primary{
+  background:#3157D5;
+  color:#FFFFFF;
+}
+
+html[data-native-shell='1'] .text-button,
+html[data-native-shell='1'] .planner-quick button,
+html[data-native-shell='1'] .planner-add-bucket button,
+html[data-native-shell='1'] .planner-pro-lock>svg:first-child,
+html[data-native-shell='1'] .planner-section-title>svg{
+  color:#3157D5;
+}
+
+html[data-native-shell='1'] .dropzone{
+  background:#F5F7FF;
+  border-color:#B9C5F7;
+  color:#101828;
+}
+
+html[data-native-shell='1'] .planner-composer textarea,
+html[data-native-shell='1'] .planner-add-bucket input,
+html[data-native-shell='1'] .planner-market-search input,
+html[data-native-shell='1'] .market-sim-inputs input,
+html[data-native-shell='1'] .planner-bucket-list input,
+html[data-native-shell='1'] .field select{
+  background:#FFFFFF;
+  color:#101828;
+  border-color:#D0D5DD;
+}
+
+html[data-native-shell='1'] .market-sim-result b,
+html[data-native-shell='1'] .planner-quick button,
+html[data-native-shell='1'] .segments button.active{
+  color:#1F3A8A;
+}
+
+html[data-native-shell='1'] .toast{
+  background:#FFFFFF;
+  color:#101828;
+  border-color:#D0D5DD;
+  box-shadow:0 14px 38px rgba(16,24,40,.14);
+}
+
+html[data-native-shell='1'] .radar-chart-empty,
+html[data-native-shell='1'] .planner-disclosure-empty{
+  border-color:#D0D5DD;
+  background:#F8FAFC;
+}
+
+html[data-native-shell='1'] .bottom-nav{
+  background:rgba(255,255,255,.95);
+  border-color:#DCE1EA;
+  box-shadow:0 16px 40px rgba(16,24,40,.12);
+}
+
+html[data-native-shell='1'] .bottom-nav button{
+  color:#667085;
+}
+
+html[data-native-shell='1'] .bottom-nav button.active{
+  background:#EEF2FF;
+  color:#1F3A8A;
+}
+
 @media(hover:hover) and (pointer:fine){
   button:not(:disabled):hover,
   [role='button']:hover,
