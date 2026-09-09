@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyConfirmedFact, createPlanningState, ensurePlanningState, validatePlanTargets } from './planningEngine';
+import { applyConfirmedFact, createPlanningState, ensurePlanningState, nextPlanningPrompt, validatePlanTargets } from './planningEngine';
 
 describe('planningEngine', () => {
   it('commits only explicitly confirmed facts into structured planning state', () => {
@@ -11,6 +11,31 @@ describe('planningEngine', () => {
     expect(withGoal.goals).toHaveLength(1);
     expect(withGoal.goals[0].title).toBe('Trocar de carro');
     expect(initial.goals).toHaveLength(0);
+  });
+
+  it('connects diagnosis, suggested next step and confirmed actions into the plan journey', () => {
+    const health = {
+      status: 'ready' as const,
+      essential: { percent: 62 },
+      flexible: { percent: 25 },
+      future: { percent: 13 },
+    };
+    const initial = createPlanningState();
+    expect(nextPlanningPrompt(initial, health)).toMatchObject({ stage: 'goals' });
+
+    const withGoal = applyConfirmedFact(initial, {
+      type: 'goal',
+      goal: { title: 'Reserva de emergência', kind: 'reserve', priority: 1, monthlyContribution: 50000 },
+    });
+    expect(nextPlanningPrompt(withGoal, health)).toMatchObject({ stage: 'adjustments' });
+
+    const actionable = applyConfirmedFact(withGoal, {
+      type: 'adjustment',
+      adjustment: { label: 'Reduzir gastos flexíveis', currentAmount: 120000, targetAmount: 80000 },
+    });
+    expect(nextPlanningPrompt(actionable, health)).toMatchObject({ stage: 'scenarios' });
+    expect(actionable.goals[0].status).toBe('confirmed');
+    expect(actionable.adjustments[0]).toMatchObject({ confirmed: true, targetAmount: 80000 });
   });
 
   it('supports user-defined buckets without turning 50/30/20 into a fixed plan', () => {
