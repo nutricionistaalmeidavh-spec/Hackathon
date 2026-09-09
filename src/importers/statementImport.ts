@@ -3,7 +3,7 @@ import type { Tx } from '../types';
 import { safeDate } from '../core/financeEngine';
 
 const clean = (v: string) => v.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
-const parseMoney = (value: unknown) => {
+export const parseImportedMoney = (value: unknown) => {
   if (typeof value === 'number') return Number.isFinite(value) ? value : NaN;
   let s = String(value ?? '').trim().replace(/R\$/gi, '').replace(/\s/g, '');
   if (!s) return NaN;
@@ -31,9 +31,9 @@ function rowsToTx(rows: Record<string, unknown>[], source: string): Tx[] {
   rows.forEach((row, i) => {
     const date = normalizeDate(pick(row, ['data', 'date', 'dtposted', 'lancamento']));
     const description = String(pick(row, ['descricao', 'description', 'historico', 'memo', 'name', 'estabelecimento', 'favorecido']) ?? '').trim();
-    let amount = parseMoney(pick(row, ['valor', 'amount', 'trnamt']));
+    let amount = parseImportedMoney(pick(row, ['valor', 'amount', 'trnamt']));
     if (Number.isNaN(amount)) {
-      const credit = parseMoney(pick(row, ['credito', 'credit'])), debit = parseMoney(pick(row, ['debito', 'debit']));
+      const credit = parseImportedMoney(pick(row, ['credito', 'credit'])), debit = parseImportedMoney(pick(row, ['debito', 'debit']));
       if (!Number.isNaN(credit) && credit !== 0) amount = Math.abs(credit);
       else if (!Number.isNaN(debit) && debit !== 0) amount = -Math.abs(debit);
     }
@@ -47,27 +47,32 @@ function parseOfx(text: string, source: string): Tx[] {
   const blocks = text.match(/<STMTTRN>[\s\S]*?<\/STMTTRN>/gi) ?? [];
   const tag = (block: string, name: string) => block.match(new RegExp(`<${name}>([^<\\r\\n]+)`, 'i'))?.[1]?.trim() || '';
   return blocks.flatMap((block, index) => {
-    const raw = parseMoney(tag(block, 'TRNAMT')), date = normalizeDate(tag(block, 'DTPOSTED'));
+    const raw = parseImportedMoney(tag(block, 'TRNAMT')), date = normalizeDate(tag(block, 'DTPOSTED'));
     const description = (tag(block, 'NAME') || tag(block, 'MEMO') || 'Movimentação').trim();
     if (!date || Number.isNaN(raw) || raw === 0) return [];
     return [{ id: `${source}_${tag(block, 'FITID') || index}`, date, amount: Math.round(Math.abs(raw) * 100), direction: raw < 0 ? 'debit' as const : 'credit' as const, description: description.toUpperCase(), counterparty: description, status: 'unresolved' as const }];
   });
 }
 
+function parsedResult(txs: Tx[], note?: string): { txs: Tx[]; note?: string } {
+  if (txs.length) return { txs };
+  return { txs, note: note || 'Nenhuma movimentação válida foi encontrada no arquivo.' };
+}
+
 export async function parseStatementFile(file: File): Promise<{ txs: Tx[]; note?: string }> {
   const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
   const source = `${file.name}_${file.size}_${file.lastModified}`.replace(/[^a-zA-Z0-9]/g, '_');
-  if (ext === 'ofx') return { txs: parseOfx(await file.text(), source) };
+  if (ext === 'ofx') return parsedResult(parseOfx(await file.text(), source));
   if (ext === 'csv' || ext === 'txt') {
     const wb = XLSX.read(await file.text(), { type: 'string', cellDates: true });
     const rows = wb.SheetNames.flatMap(name => XLSX.utils.sheet_to_json<Record<string, unknown>>(wb.Sheets[name], { defval: '' }));
-    return { txs: rowsToTx(rows, source) };
+    return parsedResult(rowsToTx(rows, source));
   }
   if (ext === 'xls' || ext === 'xlsx') {
     const wb = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: true });
     const rows = wb.SheetNames.flatMap(name => XLSX.utils.sheet_to_json<Record<string, unknown>>(wb.Sheets[name], { defval: '' }));
-    return { txs: rowsToTx(rows, source) };
+    return parsedResult(rowsToTx(rows, source));
   }
-  if (ext === 'pdf') return { txs: [], note: 'PDF ainda não é interpretado automaticamente.' };
-  return { txs: [], note: 'Formato não suportado.' };
+  if (ext === 'pdf') return parsedResult([], 'PDF ainda não é interpretado automaticamente.');
+  return parsedResult([], 'Formato não suportado.');
 }
