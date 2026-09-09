@@ -440,7 +440,7 @@ export default function App() {
             <Segment label={`Auto · ${summary.automated}`} active={inboxFilter === 'auto'} onPress={() => setInboxFilter('auto')} />
           </View>
           {!visible.length ? (
-            <View style={styles.heroCard} accessible accessibilityLabel={`${emptyCopy.title} ${emptyCopy.description}`}>
+            <View style={styles.heroCard}>
               <Text style={styles.cardEyebrow}>{emptyCopy.eyebrow}</Text>
               <Text style={styles.cardTitle}>{emptyCopy.title}</Text>
               <Text style={styles.cardText}>{emptyCopy.description}</Text>
@@ -690,7 +690,7 @@ function ExperienceState({
   onAction?: () => void;
 }) {
   return (
-    <View style={styles.centerState} accessible accessibilityLabel={`${title}. ${description}`}>
+    <View style={styles.centerState}>
       {loading ? <ActivityIndicator accessibilityLabel="Carregando" /> : <View style={styles.errorMark}><Text style={styles.errorMarkText}>!</Text></View>}
       <Text accessibilityLiveRegion={loading ? 'polite' : 'assertive'} style={styles.errorTitle}>{title}</Text>
       <Text style={styles.muted}>{description}</Text>
