@@ -25,3 +25,5 @@ jobs:
       - run: npm run typecheck
       - run: npm run config
       - run: npm run doctor
+      - name: Verify Android Metro bundle
+        run: npx expo export --platform android --output-dir dist-android --clear
