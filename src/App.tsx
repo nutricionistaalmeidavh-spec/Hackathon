@@ -31,8 +31,14 @@ import { ContextualUpgrade } from './journey/ContextualUpgrade';
 import { DemoProgress } from './journey/DemoProgress';
 import { JourneyCard } from './journey/JourneyCard';
 import { deriveDemoStep, deriveJourneyStage, nextPendingId } from './journey/journeyState';
+import { mergeImportedTransactions } from './importers/importMerge';
 import { parseStatementFile } from './importers/statementImport';
 import { AiFeatureError, suggestCategory } from './integrations/ai';
+import {
+  hasNativeDataBridge,
+  publishPortableState,
+  subscribeToNativeDataCommands,
+} from './integrations/mobileDataBridge';
 import { getOpenFinanceData, getPluggyStatus, openPluggyConnect } from './integrations/pluggy';
 import {
   hasNativeSubscriptionBridge,
@@ -77,6 +83,7 @@ export default function App() {
   const initial = useMemo(loadSaved, []);
   const startInDemo = useMemo(() => new URLSearchParams(window.location.search).get('demo') === '1', []);
   const initialDemo = useMemo(() => createDemoState(), []);
+  const nativeDataBridge = useMemo(hasNativeDataBridge, []);
   const realStateRef = useRef<Saved>({ ...initial, planning: ensurePlanningState(initial.planning) });
   const [demoMode, setDemoMode] = useState(startInDemo);
   const [tab, setTab] = useState<Tab>('today');
@@ -122,6 +129,38 @@ export default function App() {
     requestNativeSubscriptionState();
     return unsubscribe;
   }, []);
+  useEffect(() => {
+    if (!nativeDataBridge) return;
+
+    const publish = () => publishPortableState({ demoMode, txs, accounts });
+    publish();
+
+    return subscribeToNativeDataCommands(command => {
+      if (command.type === 'WTM_PORTABLE_REQUEST_STATE') {
+        publish();
+        return;
+      }
+
+      if (command.type === 'WTM_PORTABLE_NAVIGATE') {
+        setSelected(null);
+        openTab(command.tab);
+        return;
+      }
+
+      const item = txs.find(tx => tx.id === command.id);
+      if (!item) return;
+      setTxs(current => current.map(tx => tx.id === command.id ? {
+        ...tx,
+        status: 'categorized',
+        category: command.category,
+        categorySource: 'manual',
+        categoryConfidence: 100,
+      } : tx));
+      setFilter('attention');
+      if (demoMode) setDemoTouchedReview(true);
+      setMessage('Categoria salva pelo app.');
+    });
+  }, [nativeDataBridge, demoMode, txs, accounts]);
 
   const attention = txs.filter(t => t.status === 'unresolved' || t.status === 'needs_review');
   const resolved = txs.filter(t => t.status === 'confirmed' || t.status === 'categorized');
@@ -284,11 +323,26 @@ export default function App() {
     try {
       const parsed = await Promise.all(Array.from(files).map(parseStatementFile));
       const incoming = parsed.flatMap(x => x.txs);
-      setTxs(applyPatternIntelligence(incoming, rules));
+      if (!incoming.length) {
+        setMessage(parsed.find(x => x.note)?.note || 'Nenhuma movimentação válida foi encontrada. Seus dados atuais foram preservados.');
+        return;
+      }
+
+      const merge = mergeImportedTransactions(txs, incoming);
+      if (!merge.addedCount) {
+        setFilter('attention');
+        openTab('inbox');
+        setMessage(`${merge.duplicateCount} movimentações já existiam e foram ignoradas. Suas revisões foram preservadas.`);
+        return;
+      }
+
+      const classifiedAdded = applyPatternIntelligence(merge.added, rules);
+      setTxs([...txs, ...classifiedAdded]);
       setAccounts([]);
       setFilter('attention');
       openTab('inbox');
-      setMessage(`${incoming.length} movimentações importadas.`);
+      const duplicates = merge.duplicateCount ? ` · ${merge.duplicateCount} duplicadas ignoradas` : '';
+      setMessage(`${classifiedAdded.length} movimentações novas importadas${duplicates}.`);
     } catch {
       setMessage('Não conseguimos ler esse arquivo. Confira o formato e tente novamente.');
     } finally {
@@ -380,7 +434,7 @@ export default function App() {
       </>}
     </main>
     <ContextualUpgrade open={Boolean(upgradeContext)} title={upgradeContext?.title || ''} description={upgradeContext?.description || ''} benefits={upgradeContext?.benefits || []} onContinue={continueUpgrade} onClose={() => setUpgradeContext(null)} />
-    <nav className="bottom-nav"><NavButton active={tab === 'today'} onClick={() => openTab('today')} icon={<CircleDollarSign/>} label="Hoje"/><NavButton active={tab === 'inbox'} onClick={() => openTab('inbox')} icon={<Inbox/>} label="Inbox"/><NavButton active={tab === 'radar'} onClick={() => openTab('radar')} icon={<Radar/>} label="Radar"/><NavButton active={tab === 'planner'} onClick={() => openTab('planner')} icon={<Target/>} label="Planejar"/><NavButton active={tab === 'more'} onClick={() => openTab('more')} icon={<Settings2/>} label="Mais"/></nav>
+    {!nativeDataBridge && <nav className="bottom-nav"><NavButton active={tab === 'today'} onClick={() => openTab('today')} icon={<CircleDollarSign/>} label="Hoje"/><NavButton active={tab === 'inbox'} onClick={() => openTab('inbox')} icon={<Inbox/>} label="Inbox"/><NavButton active={tab === 'radar'} onClick={() => openTab('radar')} icon={<Radar/>} label="Radar"/><NavButton active={tab === 'planner'} onClick={() => openTab('planner')} icon={<Target/>} label="Planejar"/><NavButton active={tab === 'more'} onClick={() => openTab('more')} icon={<Settings2/>} label="Mais"/></nav>}
   </div>;
 }
 
