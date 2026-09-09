@@ -33,15 +33,39 @@ describe('mergeImportedTransactions', () => {
     expect(result.duplicateCount).toBe(1);
   });
 
-  it('deduplicates repeated movements inside the same import batch', () => {
-    const first = tx({ id: 'file-a' });
-    const repeated = tx({ id: 'file-b' });
+  it('deduplicates the exact same source row inside one batch', () => {
+    const first = tx({ id: 'same-source-row' });
+    const repeated = tx({ id: 'same-source-row' });
 
     const result = mergeImportedTransactions([], [first, repeated]);
 
     expect(result.merged).toEqual([first]);
     expect(result.addedCount).toBe(1);
     expect(result.duplicateCount).toBe(1);
+  });
+
+  it('preserves two legitimate identical charges when both exist in a new statement', () => {
+    const first = tx({ id: 'row-1' });
+    const second = tx({ id: 'row-2' });
+
+    const result = mergeImportedTransactions([], [first, second]);
+
+    expect(result.merged).toEqual([first, second]);
+    expect(result.addedCount).toBe(2);
+    expect(result.duplicateCount).toBe(0);
+  });
+
+  it('uses multiplicity to preserve reviews when the same statement is imported again', () => {
+    const firstReviewed = tx({ id: 'old-1', status: 'categorized', category: 'Combustível', categorySource: 'manual' });
+    const secondReviewed = tx({ id: 'old-2', status: 'confirmed', category: 'Combustível' });
+    const reimportedFirst = tx({ id: 'new-1' });
+    const reimportedSecond = tx({ id: 'new-2' });
+
+    const result = mergeImportedTransactions([firstReviewed, secondReviewed], [reimportedFirst, reimportedSecond]);
+
+    expect(result.merged).toEqual([firstReviewed, secondReviewed]);
+    expect(result.addedCount).toBe(0);
+    expect(result.duplicateCount).toBe(2);
   });
 
   it('keeps existing data and appends genuinely new movements', () => {
