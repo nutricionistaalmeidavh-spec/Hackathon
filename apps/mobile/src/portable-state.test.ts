@@ -14,7 +14,8 @@ const state: PortableState = {
     { id: 'c', date: '2026-09-08', amount: 5000, direction: 'debit', description: 'MERCADO', counterparty: 'Mercado', status: 'categorized', category: 'Supermercado' },
   ],
   accounts: [
-    { id: 'account-1', name: 'Conta', type: 'BANK', balance: 524000 },
+    { id: 'account-1', name: 'Conta', type: 'BANK', balance: 5240 },
+    { id: 'card-1', name: 'Cartão', type: 'CREDIT', balance: -1800 },
   ],
 };
 
@@ -23,7 +24,7 @@ describe('portable finance state', () => {
     expect(parsePortableStatePayload({ type: 'WTM_PORTABLE_STATE', ...state })).toEqual(state);
   });
 
-  it('summarizes Today/Inbox counts and balance', () => {
+  it('summarizes Today/Inbox counts and uses the same cash-balance unit as Radar', () => {
     expect(summarizePortableState(state)).toEqual({
       attention: 1,
       resolved: 1,
