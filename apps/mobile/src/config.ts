@@ -14,9 +14,16 @@ const clean = (value?: string) => {
   return normalized ? normalized : undefined;
 };
 
+export function withNativeShellParam(url: string): string {
+  if (/[?&]nativeShell=1(?:&|$)/.test(url)) return url;
+  const separator = url.includes('?') ? '&' : '?';
+  return `${url}${separator}nativeShell=1`;
+}
+
 export function getMobileConfig(env: EnvMap): MobileConfig {
+  const webAppUrl = clean(env.EXPO_PUBLIC_WEB_APP_URL) ?? DEFAULT_WEB_APP_URL;
   return {
-    webAppUrl: clean(env.EXPO_PUBLIC_WEB_APP_URL) ?? DEFAULT_WEB_APP_URL,
+    webAppUrl: withNativeShellParam(webAppUrl),
     revenueCatApiKey: clean(env.EXPO_PUBLIC_REVENUECAT_API_KEY),
     oneSignalAppId: clean(env.EXPO_PUBLIC_ONESIGNAL_APP_ID),
   };
