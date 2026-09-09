@@ -91,11 +91,14 @@ export function parsePortableStatePayload(value: unknown): PortableState | null 
 }
 
 export function summarizePortableState(state: PortableState): PortableSummary {
+  const cashAccounts = state.accounts.filter(account => !/credit|cart/i.test(String(account.type)));
+  const balanceAccounts = cashAccounts.length ? cashAccounts : state.accounts;
+
   return {
     attention: state.txs.filter(tx => tx.status === 'unresolved' || tx.status === 'needs_review').length,
     resolved: state.txs.filter(tx => tx.status === 'confirmed' || tx.status === 'categorized').length,
     automated: state.txs.filter(tx => tx.status === 'candidate').length,
-    balance: state.accounts.reduce((sum, account) => sum + account.balance, 0),
+    balance: balanceAccounts.reduce((sum, account) => sum + Math.round(account.balance * 100), 0),
   };
 }
 
