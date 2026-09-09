@@ -6,9 +6,14 @@ export function FeedbackToast({ message, onClose }: { message: string; onClose: 
   const tone = classifyFeedback(message);
   const Icon = tone === 'error' ? CircleAlert : tone === 'success' ? Check : Info;
 
-  return <div className={`toast ${tone}`} role={tone === 'error' ? 'alert' : 'status'} aria-live={tone === 'error' ? 'assertive' : 'polite'}>
+  return <div
+    className={`toast ${tone}`}
+    role={tone === 'error' ? 'alert' : 'status'}
+    aria-live={tone === 'error' ? 'assertive' : 'polite'}
+    aria-atomic="true"
+  >
     <span className="feedback-icon" aria-hidden="true"><Icon size={14}/></span>
     <p>{message}</p>
-    <button aria-label="Fechar" onClick={onClose}><X size={15}/></button>
+    <button type="button" aria-label="Fechar mensagem" onClick={onClose}><X size={15}/></button>
   </div>;
 }
