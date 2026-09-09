@@ -47,7 +47,8 @@ export function parseNativeDataCommand(value: unknown): NativeDataCommand | null
 
 export function hasNativeDataBridge(): boolean {
   if (typeof window === 'undefined') return false;
-  return Boolean((window as NativeWebViewWindow).ReactNativeWebView?.postMessage);
+  const capabilityEnabled = new URLSearchParams(window.location.search).get('nativeShell') === '1';
+  return capabilityEnabled && Boolean((window as NativeWebViewWindow).ReactNativeWebView?.postMessage);
 }
 
 export function publishPortableState(payload: Omit<PortableStatePayload, 'type'>): boolean {
