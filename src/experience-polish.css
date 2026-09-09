@@ -1,0 +1,198 @@
+/* Final experience polish — interaction, keyboard and accessibility only.
+   Loaded last so it can normalize behavior without rewriting feature visuals. */
+
+html{
+  scroll-padding-bottom:calc(120px + env(safe-area-inset-bottom));
+  -webkit-text-size-adjust:100%;
+}
+
+body{
+  overscroll-behavior-y:contain;
+}
+
+button,
+[role='button'],
+a,
+input,
+textarea,
+select,
+summary{
+  -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
+}
+
+button,
+[role='button'],
+summary,
+a{
+  transition:transform .14s ease,opacity .14s ease,border-color .18s ease,background-color .18s ease,box-shadow .18s ease;
+}
+
+button:not(:disabled):active,
+[role='button']:active,
+summary:active{
+  transform:translateY(1px) scale(.99);
+}
+
+button:disabled,
+[aria-disabled='true']{
+  opacity:.48;
+  cursor:not-allowed;
+}
+
+[aria-busy='true']{
+  cursor:progress;
+}
+
+:where(button,a,input,textarea,select,summary,[tabindex]):focus-visible{
+  outline:3px solid rgba(164,176,255,.86);
+  outline-offset:3px;
+  box-shadow:0 0 0 5px rgba(124,140,255,.13);
+}
+
+:where(input,textarea,select):focus-visible{
+  outline-width:2px;
+  outline-offset:1px;
+}
+
+.page-stack,
+.radar-feature,
+.planner-page{
+  min-width:0;
+}
+
+.radar-feature,
+.planner-page{
+  animation:xpSurfaceIn .22s cubic-bezier(.2,.8,.2,1) both;
+}
+
+.card,
+.radar-chart-card,
+.radar-journey-summary,
+.radar-balance-card,
+.radar-watch-card,
+.radar-why,
+.planner-conversation,
+.planner-plan-card,
+.planner-disclosure{
+  transition:border-color .18s ease,box-shadow .18s ease,background-color .18s ease,transform .18s ease;
+}
+
+.radar-chart-empty,
+.planner-disclosure-empty{
+  min-height:92px;
+  display:grid;
+  place-items:center;
+  padding:16px;
+  border:1px dashed rgba(255,255,255,.12);
+  border-radius:13px;
+  color:var(--muted);
+  text-align:center;
+  line-height:1.5;
+}
+
+.planner-composer,
+.planner-market-search,
+.planner-add-bucket,
+.market-sim-inputs{
+  scroll-margin-bottom:38vh;
+}
+
+.planner-composer textarea{
+  min-height:104px;
+  resize:vertical;
+  line-height:1.5;
+}
+
+.planner-composer:focus-within,
+.planner-market-search:focus-within,
+.planner-add-bucket:focus-within{
+  position:relative;
+  z-index:2;
+}
+
+.toast{
+  max-width:min(460px,calc(100vw - 28px));
+  backdrop-filter:blur(16px);
+}
+
+.toast p{
+  overflow-wrap:anywhere;
+}
+
+.bottom-nav button,
+.primary,
+.secondary,
+.text-button,
+.planner-confirmations button,
+.planner-quick button,
+.planner-add-bucket button,
+.planner-pro-lock,
+.radar-watch-card,
+.radar-why{
+  min-height:44px;
+}
+
+@media(hover:hover) and (pointer:fine){
+  button:not(:disabled):hover,
+  [role='button']:hover,
+  summary:hover{
+    transform:translateY(-1px);
+  }
+
+  .card:hover,
+  .radar-chart-card:hover,
+  .planner-conversation:hover,
+  .planner-plan-card:hover{
+    border-color:rgba(124,140,255,.24);
+  }
+}
+
+@media(max-width:640px){
+  input,
+  textarea,
+  select{
+    font-size:16px!important;
+  }
+
+  .planner-composer textarea{
+    min-height:116px;
+  }
+
+  .planner-thread{
+    scroll-margin-bottom:42vh;
+  }
+}
+
+@media(forced-colors:active){
+  :where(button,a,input,textarea,select,summary,[tabindex]):focus-visible{
+    outline:2px solid Highlight;
+    box-shadow:none;
+  }
+
+  button:disabled,
+  [aria-disabled='true']{
+    opacity:1;
+    color:GrayText;
+  }
+}
+
+@media(prefers-reduced-motion:reduce){
+  html{
+    scroll-behavior:auto!important;
+  }
+
+  *,
+  *::before,
+  *::after{
+    animation-duration:.01ms!important;
+    animation-iteration-count:1!important;
+    transition-duration:.01ms!important;
+    scroll-behavior:auto!important;
+  }
+}
+
+@keyframes xpSurfaceIn{
+  from{opacity:0;transform:translateY(5px)}
+  to{opacity:1;transform:translateY(0)}
+}
