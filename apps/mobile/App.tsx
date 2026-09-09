@@ -557,7 +557,7 @@ function NavItem({ label, active, badge, onPress }: { label: string; active: boo
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#F6F8FC' },
   content: { flex: 1, position: 'relative' },
-  webContainer: { ...StyleSheet.absoluteFillObject, backgroundColor: '#F6F8FC', zIndex: 2 },
+  webContainer: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: '#F6F8FC', zIndex: 2 },
   webHidden: { opacity: 0, width: 1, height: 1, right: undefined, bottom: undefined },
   webView: { flex: 1, backgroundColor: '#F6F8FC' },
   centerState: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10, backgroundColor: '#F6F8FC', padding: 24 },
