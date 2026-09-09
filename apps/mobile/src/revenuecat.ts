@@ -3,24 +3,44 @@ import Purchases, {
   type CustomerInfo,
 } from 'react-native-purchases';
 import RevenueCatUI from 'react-native-purchases-ui';
-import { hasProEntitlement } from './subscription-state';
+import { activeEntitlementIds, hasProEntitlement, resolveProEntitlementId } from './subscription-state';
 
-const PRO_ENTITLEMENT = 'pro';
+const PRO_ENTITLEMENT = resolveProEntitlementId(process.env.EXPO_PUBLIC_REVENUECAT_ENTITLEMENT_ID);
 let configured = false;
 
 export type RevenueCatState = {
   configured: boolean;
   isPro: boolean;
   customerInfo: CustomerInfo | null;
+  entitlementId: string;
+  activeEntitlementIds: string[];
 };
+
+function emptyState(): RevenueCatState {
+  return {
+    configured: false,
+    isPro: false,
+    customerInfo: null,
+    entitlementId: PRO_ENTITLEMENT,
+    activeEntitlementIds: [],
+  };
+}
+
+function stateFromCustomerInfo(customerInfo: CustomerInfo): RevenueCatState {
+  return {
+    configured: true,
+    isPro: hasProEntitlement(customerInfo, PRO_ENTITLEMENT),
+    customerInfo,
+    entitlementId: PRO_ENTITLEMENT,
+    activeEntitlementIds: activeEntitlementIds(customerInfo),
+  };
+}
 
 export async function initializeRevenueCat(
   apiKey?: string,
 ): Promise<RevenueCatState> {
   const key = apiKey?.trim();
-  if (!key) {
-    return { configured: false, isPro: false, customerInfo: null };
-  }
+  if (!key) return emptyState();
 
   if (!configured) {
     Purchases.setLogLevel(__DEV__ ? LOG_LEVEL.DEBUG : LOG_LEVEL.WARN);
@@ -32,16 +52,8 @@ export async function initializeRevenueCat(
 }
 
 export async function getRevenueCatState(): Promise<RevenueCatState> {
-  if (!configured) {
-    return { configured: false, isPro: false, customerInfo: null };
-  }
-
-  const customerInfo = await Purchases.getCustomerInfo();
-  return {
-    configured: true,
-    isPro: hasProEntitlement(customerInfo),
-    customerInfo,
-  };
+  if (!configured) return emptyState();
+  return stateFromCustomerInfo(await Purchases.getCustomerInfo());
 }
 
 export async function presentPlanExperience(isPro: boolean): Promise<void> {
@@ -58,16 +70,8 @@ export async function presentPlanExperience(isPro: boolean): Promise<void> {
 }
 
 export async function restorePurchases(): Promise<RevenueCatState> {
-  if (!configured) {
-    return { configured: false, isPro: false, customerInfo: null };
-  }
-
-  const customerInfo = await Purchases.restorePurchases();
-  return {
-    configured: true,
-    isPro: hasProEntitlement(customerInfo),
-    customerInfo,
-  };
+  if (!configured) return emptyState();
+  return stateFromCustomerInfo(await Purchases.restorePurchases());
 }
 
 export function subscribeToCustomerInfo(
@@ -76,7 +80,11 @@ export function subscribeToCustomerInfo(
   if (!configured) return () => undefined;
 
   const handler = (customerInfo: CustomerInfo) => {
-    listener(hasProEntitlement(customerInfo), customerInfo);
+    const state = stateFromCustomerInfo(customerInfo);
+    if (__DEV__ && !state.isPro && state.activeEntitlementIds.length) {
+      console.warn(`RevenueCat: entitlement esperado "${PRO_ENTITLEMENT}"; ativos: ${state.activeEntitlementIds.join(', ')}`);
+    }
+    listener(state.isPro, customerInfo);
   };
 
   Purchases.addCustomerInfoUpdateListener(handler);
