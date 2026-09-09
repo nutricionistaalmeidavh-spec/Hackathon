@@ -25,19 +25,37 @@ export function transactionFingerprint(tx: Tx): string {
   ].join('|');
 }
 
+function increment(map: Map<string, number>, key: string): number {
+  const next = (map.get(key) || 0) + 1;
+  map.set(key, next);
+  return next;
+}
+
 export function mergeImportedTransactions(current: Tx[], incoming: Tx[]): ImportMergeResult {
-  const fingerprints = new Set(current.map(transactionFingerprint));
+  const currentMultiplicity = new Map<string, number>();
+  const incomingMultiplicity = new Map<string, number>();
+  const seenIds = new Set(current.map(tx => tx.id));
   const added: Tx[] = [];
   let duplicateCount = 0;
 
+  current.forEach(tx => increment(currentMultiplicity, transactionFingerprint(tx)));
+
   for (const tx of incoming) {
-    const fingerprint = transactionFingerprint(tx);
-    if (fingerprints.has(fingerprint)) {
+    if (seenIds.has(tx.id)) {
       duplicateCount += 1;
       continue;
     }
 
-    fingerprints.add(fingerprint);
+    const fingerprint = transactionFingerprint(tx);
+    const occurrence = increment(incomingMultiplicity, fingerprint);
+    const alreadyPresent = currentMultiplicity.get(fingerprint) || 0;
+
+    if (occurrence <= alreadyPresent) {
+      duplicateCount += 1;
+      continue;
+    }
+
+    seenIds.add(tx.id);
     added.push(tx);
   }
 
