@@ -10,7 +10,7 @@ Web/Vite + Worker (raiz)
 Cloudflare Worker publicado
           ↓
 Expo development client (`apps/mobile`)
-          ├── WebView = única superfície visual do produto
+          ├── React Native = Hoje/Inbox nativos; WebView = superfícies web restantes
           ├── RevenueCat nativo = fonte de verdade do `pro`
           ├── bridge WebView ↔ RevenueCat
           └── OneSignal nativo
@@ -164,6 +164,18 @@ Alternativamente, arraste o APK para o Android Emulator ou use:
 adb install -r caminho/para/app.apk
 ```
 
+### Critério obrigatório para mudanças visuais
+
+Uma mudança visual só é considerada entregue depois de validada no APK instalado no emulador. O fluxo obrigatório é:
+
+1. confirmar que `apps/mobile/App.tsx` contém a UI esperada;
+2. gerar uma nova build Android após alterações no shell React Native;
+3. instalar essa build no emulador, removendo a anterior se houver dúvida sobre a versão;
+4. abrir o APK e validar a primeira tela, navegação e superfícies WebView;
+5. só então validar RevenueCat, Pluggy, Gemini e OneSignal.
+
+A URL web não substitui essa validação: o shell pode iniciar em uma superfície React Native e carregar a WebView em segundo plano.
+
 ## Rodar durante o desenvolvimento
 
 Com o development client já instalado:
@@ -243,6 +255,8 @@ No Windows não existe iOS Simulator oficial. Para iOS use:
 Esta entrega deixa o bundle iOS preparado, mas não exige Apple Developer para o primeiro checkpoint Android/RevenueCat Test Store.
 
 ## Regra de ouro
+
+Nenhuma mudança visual fica concluída apenas porque passou no navegador ou no código local; ela precisa passar pela validação do APK efetivamente instalado.
 
 Web/Worker antes do push:
 

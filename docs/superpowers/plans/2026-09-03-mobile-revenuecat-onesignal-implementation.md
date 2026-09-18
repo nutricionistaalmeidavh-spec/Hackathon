@@ -65,6 +65,8 @@
 - [ ] Run all mobile tests and typecheck.
 - [ ] Commit `feat: add native mobile shell`.
 
+**Critério de entrega visual:** nenhuma mudança de UI é considerada concluída apenas por passar no navegador. Depois de alterar `apps/mobile/App.tsx`, confirmar a UI local, gerar uma nova build Android, instalar o APK no emulador e validar a primeira tela e as superfícies WebView no APK efetivamente instalado.
+
 ### Task 5: Mobile CI and docs
 
 **Files:** `.github/workflows/mobile-ci.yml`, `.gitignore`, `docs/MOBILE-BUILD.md`, `README.md`.
@@ -82,3 +84,4 @@
 - [ ] Review diff for secrets and unintended web changes.
 - [ ] Merge to `main` only after verification.
 - [ ] User syncs with `git pull origin main`, then `cd apps\\mobile`.
+- [ ] Confirmar a UI visual no APK instalado; navegador e código local isoladamente não encerram a validação.

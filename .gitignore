@@ -21,3 +21,6 @@ google-services.json
 GoogleService-Info.plist
 *.p8
 *.p12
+
+# TypeScript incremental build cache
+*.tsbuildinfo
