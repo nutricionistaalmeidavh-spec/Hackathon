@@ -19,6 +19,7 @@ steps:
       ANDROID_HOME: 'C:\Users\Marcio\AppData\Local\Android\Sdk'
     commands:
       - '$ErrorActionPreference = "Stop"'
+      - '$env:CI = "true"'
       - 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\scripts\ci\hackathon-android-v3.ps1"'
 
   - name: reportar-sucesso-github
