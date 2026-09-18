@@ -7,6 +7,7 @@ when:
   - event: push
     branch:
       - main
+      - chore/hackathon-woodpecker-ci
 
 steps:
   - name: static-qa
