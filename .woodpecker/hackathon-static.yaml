@@ -16,7 +16,7 @@ steps:
       ARTISYS_UTILIDADES_PATH: 'C:\VICTOR\Artisys\AgroFrota\utilidades'
     commands:
       - '$ErrorActionPreference = "Stop"'
-      - 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\scripts\ci\hackathon-static.ps1"'
+      - 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\scripts\ci\hackathon-static-v2.ps1"'
 
   - name: reportar-sucesso-github
     image: powershell.exe
