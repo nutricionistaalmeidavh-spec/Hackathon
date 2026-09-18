@@ -1,11 +1,15 @@
+import { Linking } from 'react-native';
 import Purchases, {
   LOG_LEVEL,
   type CustomerInfo,
 } from 'react-native-purchases';
 import RevenueCatUI from 'react-native-purchases-ui';
+import { mobileConfig } from './config';
+import { isQaAutomationEnabled, parseRevenueCatQaUrl } from './qa-automation';
 import { activeEntitlementIds, hasProEntitlement, resolveProEntitlementId } from './subscription-state';
 
 const PRO_ENTITLEMENT = resolveProEntitlementId(process.env.EXPO_PUBLIC_REVENUECAT_ENTITLEMENT_ID);
+const QA_AUTOMATION_ENABLED = isQaAutomationEnabled(__DEV__, mobileConfig.qaAutomationRequested);
 let configured = false;
 
 export type RevenueCatState = {
@@ -34,6 +38,18 @@ function stateFromCustomerInfo(customerInfo: CustomerInfo): RevenueCatState {
     entitlementId: PRO_ENTITLEMENT,
     activeEntitlementIds: activeEntitlementIds(customerInfo),
   };
+}
+
+function qaStateMarker(action: string, run: string, state: RevenueCatState) {
+  const active = state.activeEntitlementIds.length ? state.activeEntitlementIds.join(',') : 'none';
+  console.warn(
+    `[WTM_QA_REVENUECAT] action=${action} run=${run} configured=${state.configured} isPro=${state.isPro} entitlement=${state.entitlementId} active=${active}`,
+  );
+}
+
+function qaErrorMarker(action: string, run: string, error: unknown) {
+  const message = error instanceof Error ? error.message.replace(/\s+/g, ' ').trim() : 'unknown';
+  console.warn(`[WTM_QA_REVENUECAT] action=${action}-error run=${run} error=${message}`);
 }
 
 export async function initializeRevenueCat(
@@ -89,4 +105,36 @@ export function subscribeToCustomerInfo(
 
   Purchases.addCustomerInfoUpdateListener(handler);
   return () => Purchases.removeCustomerInfoUpdateListener(handler);
+}
+
+async function handleRevenueCatQaUrl(url: string): Promise<void> {
+  if (!QA_AUTOMATION_ENABLED) return;
+  const command = parseRevenueCatQaUrl(url);
+  if (!command) return;
+
+  try {
+    if (command.action === 'state') {
+      qaStateMarker('state', command.run, await getRevenueCatState());
+      return;
+    }
+
+    if (command.action === 'restore') {
+      qaStateMarker('restore', command.run, await restorePurchases());
+      return;
+    }
+
+    const before = await getRevenueCatState();
+    qaStateMarker('open-plan-before', command.run, before);
+    await presentPlanExperience(before.isPro);
+    qaStateMarker('open-plan-result', command.run, await getRevenueCatState());
+  } catch (error) {
+    qaErrorMarker(command.action, command.run, error);
+  }
+}
+
+if (QA_AUTOMATION_ENABLED) {
+  Linking.addEventListener('url', ({ url }) => {
+    void handleRevenueCatQaUrl(url);
+  });
+  console.warn('[WTM_QA_REVENUECAT] hook=ready');
 }
