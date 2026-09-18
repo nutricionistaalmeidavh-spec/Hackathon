@@ -29,7 +29,11 @@ function Test-RevenueCat {
 
   function Invoke-QaLink {
     param([string]$Action,[string]$Run)
-    $url = "wheresthemoney://qa/revenuecat/$Action?run=$Run"
+    $url = "wheresthemoney://qa/revenuecat/${Action}?run=${Run}"
+    $expected = "wheresthemoney://qa/revenuecat/${Action}?run=${Run}"
+    if ($url -ne $expected -or $url -notmatch '^wheresthemoney://qa/revenuecat/(state|open-plan|restore)\?run=[A-Za-z0-9-]+$') {
+      throw "Deep link RevenueCat QA invalido: $url"
+    }
     Invoke-Native -Exe $Adb -Arguments @(
       'shell','am','start','-W',
       '-a','android.intent.action.VIEW',
