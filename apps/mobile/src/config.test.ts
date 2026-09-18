@@ -23,4 +23,10 @@ describe('mobile config', () => {
     expect(withNativeShellParam('https://example.com/app?demo=1')).toBe('https://example.com/app?demo=1&nativeShell=1');
     expect(withNativeShellParam('https://example.com/app?nativeShell=1')).toBe('https://example.com/app?nativeShell=1');
   });
+
+  it('only requests QA automation when the explicit public flag is 1', () => {
+    expect((getMobileConfig({ EXPO_PUBLIC_QA_AUTOMATION: '1' }) as any).qaAutomationRequested).toBe(true);
+    expect((getMobileConfig({ EXPO_PUBLIC_QA_AUTOMATION: 'true' }) as any).qaAutomationRequested).toBe(false);
+    expect((getMobileConfig({}) as any).qaAutomationRequested).toBe(false);
+  });
 });
