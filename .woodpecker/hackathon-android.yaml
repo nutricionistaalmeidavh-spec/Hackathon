@@ -7,6 +7,7 @@ when:
   - event: push
     branch:
       - main
+      - chore/hackathon-woodpecker-ci
 
 steps:
   - name: android-qa
@@ -18,7 +19,7 @@ steps:
       ANDROID_HOME: 'C:\Users\Marcio\AppData\Local\Android\Sdk'
     commands:
       - '$ErrorActionPreference = "Stop"'
-      - 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\scripts\ci\hackathon-android.ps1"'
+      - 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\scripts\ci\hackathon-android-v2.ps1"'
 
   - name: reportar-sucesso-github
     image: powershell.exe
