@@ -20,7 +20,7 @@ steps:
     commands:
       - '$ErrorActionPreference = "Stop"'
       - '$env:CI = "true"'
-      - 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\scripts\ci\hackathon-android-v4.ps1"'
+      - 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\scripts\ci\hackathon-android-v5.ps1"'
 
   - name: reportar-sucesso-github
     image: powershell.exe
