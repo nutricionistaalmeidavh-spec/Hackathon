@@ -45,33 +45,17 @@ function Test-RevenueCat {
   $statusFree = 'QA RevenueCat Status configured=true isPro=false'
   $statusPro = 'QA RevenueCat Status configured=true isPro=true'
 
-  function Get-QaProState {
-    param([string]$Name)
-    $xml = Dump-Ui -Adb $Adb -Name $Name
-    if (Find-Node -Xml $xml -Candidates @($statusPro)) { return $true }
-    if (Find-Node -Xml $xml -Candidates @($statusFree)) { return $false }
-    if (Find-Node -Xml $xml -Candidates @('QA RevenueCat Action error')) {
-      throw 'Controle nativo de QA do RevenueCat reportou erro.'
-    }
-    return $null
-  }
-
-  function Wait-QaProState {
-    param([int]$Seconds=35,[string]$Name='qa-status')
-    $deadline = (Get-Date).AddSeconds($Seconds)
-    $n = 0
-    do {
-      Start-Sleep 2
-      $state = Get-QaProState -Name "$Name-$n"
-      if ($null -ne $state) { return [bool]$state }
-      $n++
-    } until ((Get-Date) -gt $deadline)
-    throw 'Status nativo de QA do RevenueCat nao ficou disponivel.'
-  }
-
-  $alreadyPro = Wait-QaProState -Seconds 35 -Name 'qa-status-before'
+  $alreadyPro = Wait-Text -Adb $Adb -Candidates @($statusPro) -Seconds 8 -Name 'qa-status-pro-before'
 
   if (-not $alreadyPro) {
+    $freeSeen = Wait-Text -Adb $Adb -Candidates @($statusFree) -Seconds 30 -Name 'qa-status-free-before'
+    if (-not $freeSeen) {
+      if (Wait-Text -Adb $Adb -Candidates @('QA RevenueCat Action error') -Seconds 2 -Name 'qa-status-error-before') {
+        throw 'Controle nativo de QA do RevenueCat reportou erro antes da compra.'
+      }
+      throw 'Status nativo de QA do RevenueCat nao ficou disponivel.'
+    }
+
     if (-not (Find-And-Tap -Adb $Adb -Candidates @('QA RevenueCat Open Plan') -Name 'qa-open-plan')) {
       throw 'Controle nativo QA RevenueCat Open Plan nao encontrado.'
     }
@@ -115,8 +99,7 @@ function Test-RevenueCat {
     }
 
     Start-Sleep 8
-    $becamePro = Wait-QaProState -Seconds 45 -Name 'qa-status-after-purchase'
-    if (-not $becamePro) {
+    if (-not (Wait-Text -Adb $Adb -Candidates @($statusPro) -Seconds 45 -Name 'qa-status-after-purchase')) {
       throw 'RevenueCat nao ativou Pro apos TEST VALID PURCHASE.'
     }
   }
@@ -129,8 +112,7 @@ function Test-RevenueCat {
   Start-Sleep 10
   Assert-AppLoaded -Adb $Adb
 
-  $persistedPro = Wait-QaProState -Seconds 35 -Name 'qa-status-persist'
-  if (-not $persistedPro) {
+  if (-not (Wait-Text -Adb $Adb -Candidates @($statusPro) -Seconds 35 -Name 'qa-status-persist')) {
     throw 'RevenueCat nao manteve Pro apos fechar e reabrir o app.'
   }
 
@@ -144,8 +126,7 @@ function Test-RevenueCat {
     throw 'Restore Purchases nao concluiu pelo controle nativo QA.'
   }
 
-  $restoredPro = Wait-QaProState -Seconds 20 -Name 'qa-status-after-restore'
-  if (-not $restoredPro) {
+  if (-not (Wait-Text -Adb $Adb -Candidates @($statusPro) -Seconds 20 -Name 'qa-status-after-restore')) {
     throw 'Restore Purchases concluiu, mas o entitlement Pro nao permaneceu ativo.'
   }
 }
@@ -154,6 +135,15 @@ try {
 '@
 
 $runnerText = $runnerText.Substring(0, $match.Index) + $replacement + $runnerText.Substring($match.Index + $match.Length)
+
+$tokens = $null
+$parseErrors = $null
+[System.Management.Automation.Language.Parser]::ParseInput($runnerText, [ref]$tokens, [ref]$parseErrors) | Out-Null
+if (@($parseErrors).Count -gt 0) {
+  $detail = @($parseErrors | ForEach-Object { $_.Message }) -join ' | '
+  throw "Runner RevenueCat QA gerado com sintaxe invalida: $detail"
+}
+
 Set-Content -Path $runner -Value $runnerText -Encoding utf8
 
 # Os controles QA so aparecem em build de desenvolvimento com esta flag explicita.
@@ -163,7 +153,7 @@ if ($env:EXPO_PUBLIC_QA_AUTOMATION -ne '1') {
 }
 
 Clear-StaleMetro
-Write-Host 'RevenueCat QA: controles nativos dev-only habilitados; Metro limpo e cache resetado.' -ForegroundColor Cyan
+Write-Host 'RevenueCat QA: controles nativos dev-only habilitados; Metro limpo e runner validado antes do build.' -ForegroundColor Cyan
 & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $delegate
 if ($LASTEXITCODE -ne 0) {
   throw "hackathon-android-v6.ps1 falhou (exit $LASTEXITCODE)"
