@@ -12,11 +12,13 @@ import {
 } from './revenuecat';
 
 const QA_ENABLED = isQaAutomationEnabled(__DEV__, mobileConfig.qaAutomationRequested);
+type QaActionState = 'idle' | 'opening-plan' | 'open-plan-complete' | 'restoring' | 'restore-complete' | 'error';
 
 export default function QaRoot() {
   const [configured, setConfigured] = useState(false);
   const [isPro, setIsPro] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [actionState, setActionState] = useState<QaActionState>('idle');
 
   useEffect(() => {
     if (!QA_ENABLED) return;
@@ -51,10 +53,14 @@ export default function QaRoot() {
   const openPlan = async () => {
     if (busy) return;
     setBusy(true);
+    setActionState('opening-plan');
     try {
       const before = await refresh();
       await presentPlanExperience(before.isPro);
       await refresh();
+      setActionState('open-plan-complete');
+    } catch {
+      setActionState('error');
     } finally {
       setBusy(false);
     }
@@ -63,16 +69,21 @@ export default function QaRoot() {
   const restore = async () => {
     if (busy) return;
     setBusy(true);
+    setActionState('restoring');
     try {
       const state = await restorePurchases();
       setConfigured(state.configured);
       setIsPro(state.isPro);
+      setActionState('restore-complete');
+    } catch {
+      setActionState('error');
     } finally {
       setBusy(false);
     }
   };
 
   const statusLabel = revenueCatQaStatusLabel(configured, isPro);
+  const actionLabel = `QA RevenueCat Action ${actionState}`;
 
   return (
     <View style={styles.root}>
@@ -80,6 +91,9 @@ export default function QaRoot() {
       <View style={styles.panel} accessibilityLabel="QA RevenueCat Controls">
         <Text accessible accessibilityLabel={statusLabel} style={styles.status}>
           {statusLabel}
+        </Text>
+        <Text accessible accessibilityLabel={actionLabel} style={styles.status}>
+          {actionLabel}
         </Text>
         <View style={styles.actions}>
           <Pressable
@@ -113,7 +127,7 @@ const styles = StyleSheet.create({
     top: 34,
     right: 8,
     zIndex: 10000,
-    maxWidth: 260,
+    maxWidth: 280,
     borderRadius: 8,
     backgroundColor: 'rgba(15, 23, 42, 0.92)',
     padding: 6,
