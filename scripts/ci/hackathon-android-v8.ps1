@@ -5,7 +5,7 @@ $repo = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $artifactDir = Join-Path $repo 'artifacts'
 $logPath = Join-Path $artifactDir 'woodpecker-hackathon-android.log'
 $qaPath = Join-Path $artifactDir 'qa-summary.json'
-$delegate = Join-Path $repo 'scripts\ci\hackathon-android-v7.ps1'
+$delegate = Join-Path $repo 'scripts\ci\hackathon-android-v6.ps1'
 
 New-Item -ItemType Directory -Force -Path $artifactDir | Out-Null
 Set-Content -Path $logPath -Value "Hackathon Android QA supervisor - $(Get-Date -Format o)" -Encoding utf8
@@ -14,7 +14,7 @@ function Write-FallbackFailure {
   param(
     [string]$Message,
     [Nullable[int]]$ExitCode = $null,
-    [string]$Action = 'scripts/ci/hackathon-android-v7.ps1'
+    [string]$Action = 'scripts/ci/hackathon-android-v6.ps1'
   )
 
   $summary = [pscustomobject]@{
@@ -44,7 +44,7 @@ function Write-FallbackFailure {
 }
 
 if (-not (Test-Path $delegate)) {
-  $message = "Runner Android v7 nao encontrado: $delegate"
+  $message = "Runner Android v6 nao encontrado: $delegate"
   Add-Content -Path $logPath -Value $message -Encoding utf8
   Write-FallbackFailure -Message $message -ExitCode 1
   throw $message
@@ -71,8 +71,8 @@ foreach ($line in $output) {
 }
 
 if ($exitCode -ne 0) {
-  $tail = (@($output) | Select-Object -Last 40 | ForEach-Object { [string]$_ }) -join "`n"
-  $message = "hackathon-android-v7.ps1 falhou (exit $exitCode)"
+  $tail = (@($output) | Select-Object -Last 60 | ForEach-Object { [string]$_ }) -join "`n"
+  $message = "hackathon-android-v6.ps1 falhou (exit $exitCode)"
   if ($tail) { $message += ":`n$tail" }
 
   if (-not (Test-Path $qaPath)) {
@@ -91,5 +91,5 @@ if (-not (Test-Path $qaPath)) {
   throw $message
 }
 
-Add-Content -Path $logPath -Value 'Supervisor Android QA: delegate concluiu com exit=0 e qa-summary presente.' -Encoding utf8
+Add-Content -Path $logPath -Value 'Supervisor Android QA: runner versionado concluiu com exit=0 e qa-summary presente.' -Encoding utf8
 Write-Host 'Hackathon Android QA supervisor: PASS' -ForegroundColor Green
