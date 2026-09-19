@@ -9,6 +9,10 @@ export function isQaAutomationEnabled(isDev: boolean, requested: boolean): boole
   return isDev && requested;
 }
 
+export function revenueCatQaStatusLabel(configured: boolean, isPro: boolean): string {
+  return `QA RevenueCat Status configured=${configured} isPro=${isPro}`;
+}
+
 export function parseRevenueCatQaUrl(url: string): RevenueCatQaCommand | null {
   const match = /^wheresthemoney:\/\/qa\/revenuecat\/(open-plan|restore|state)(?:\?run=([^&]+))?$/.exec(url.trim());
   if (!match) return null;
