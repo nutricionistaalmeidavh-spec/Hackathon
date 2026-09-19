@@ -20,97 +20,45 @@ function Test-RevenueCat {
   param([string]$Adb)
 
   $package = 'com.engenutri.wheresthemoney'
-  $metroQaLog = Join-Path $artifactDir 'metro.log'
+  $statusFree = 'QA RevenueCat Status configured=true isPro=false'
+  $statusPro = 'QA RevenueCat Status configured=true isPro=true'
 
-  function New-QaRun {
-    param([string]$Prefix)
-    return "$Prefix-$(([guid]::NewGuid().ToString('N')).Substring(0,8))"
+  function Get-QaProState {
+    param([string]$Name)
+    $xml = Dump-Ui -Adb $Adb -Name $Name
+    if (Find-Node -Xml $xml -Candidates @($statusPro)) { return $true }
+    if (Find-Node -Xml $xml -Candidates @($statusFree)) { return $false }
+    if (Find-Node -Xml $xml -Candidates @('QA RevenueCat Action error')) {
+      throw 'Controle nativo de QA do RevenueCat reportou erro.'
+    }
+    return $null
   }
 
-  function Invoke-QaLink {
-    param([string]$Action,[string]$Run)
-    $url = "wheresthemoney://qa/revenuecat/${Action}?run=${Run}"
-    $expected = "wheresthemoney://qa/revenuecat/${Action}?run=${Run}"
-    if ($url -ne $expected -or $url -notmatch '^wheresthemoney://qa/revenuecat/(state|open-plan|restore)\?run=[A-Za-z0-9-]+$') {
-      throw "Deep link RevenueCat QA invalido: $url"
-    }
-    Invoke-Native -Exe $Adb -Arguments @(
-      'shell','am','start','-W',
-      '-a','android.intent.action.VIEW',
-      '-d',$url,
-      '-p',$package
-    ) | Out-Null
-  }
-
-  function Read-QaMarkers {
-    $lines = @()
-    if (Test-Path $metroQaLog) {
-      $lines += @(Get-Content $metroQaLog -Tail 500 -ErrorAction SilentlyContinue)
-    }
-
-    $oldPreference = $ErrorActionPreference
-    try {
-      $ErrorActionPreference = 'Continue'
-      $lines += @(& $Adb logcat -d -t 500 2>&1)
-    } finally {
-      $ErrorActionPreference = $oldPreference
-    }
-
-    return @(
-      $lines |
-        ForEach-Object { [string]$_ } |
-        Where-Object { $_ -match '\[WTM_QA_REVENUECAT\]' }
-    )
-  }
-
-  function Wait-QaMarker {
-    param([string]$Run,[string]$Action,[int]$Seconds=30)
-
-    $runPattern = "run=$([regex]::Escape($Run))(?=\s|$)"
-    $actionPattern = "action=$([regex]::Escape($Action))(?=\s|$)"
+  function Wait-QaProState {
+    param([int]$Seconds=35,[string]$Name='qa-status')
     $deadline = (Get-Date).AddSeconds($Seconds)
-
+    $n = 0
     do {
       Start-Sleep 2
-      $marker = @(
-        Read-QaMarkers |
-          Where-Object { $_ -match $runPattern -and $_ -match $actionPattern } |
-          Select-Object -Last 1
-      )
-      if ($marker.Count) {
-        Write-Host $marker[0]
-        return [string]$marker[0]
-      }
+      $state = Get-QaProState -Name "$Name-$n"
+      if ($null -ne $state) { return [bool]$state }
+      $n++
     } until ((Get-Date) -gt $deadline)
-
-    $all = (Read-QaMarkers | Select-Object -Last 20) -join "`n"
-    throw "Marker RevenueCat QA nao encontrado: action=$Action run=$Run`n$all"
+    throw 'Status nativo de QA do RevenueCat nao ficou disponivel.'
   }
 
-  $stateRun = New-QaRun -Prefix 'state-before'
-  Invoke-QaLink -Action 'state' -Run $stateRun
-  $stateLine = Wait-QaMarker -Run $stateRun -Action 'state' -Seconds 25
-
-  if ($stateLine -notmatch 'configured=true') {
-    throw "RevenueCat QA hook respondeu sem SDK configurado: $stateLine"
-  }
-
-  $alreadyPro = $stateLine -match 'isPro=true'
+  $alreadyPro = Wait-QaProState -Seconds 35 -Name 'qa-status-before'
 
   if (-not $alreadyPro) {
-    $openRun = New-QaRun -Prefix 'open'
-    Invoke-QaLink -Action 'open-plan' -Run $openRun
-
-    $beforeLine = Wait-QaMarker -Run $openRun -Action 'open-plan-before' -Seconds 25
-    if ($beforeLine -notmatch 'configured=true') {
-      throw "RevenueCat nao estava configurado antes do paywall: $beforeLine"
+    if (-not (Find-And-Tap -Adb $Adb -Candidates @('QA RevenueCat Open Plan') -Name 'qa-open-plan')) {
+      throw 'Controle nativo QA RevenueCat Open Plan nao encontrado.'
     }
 
     Start-Sleep 4
     Capture-Screen -Path (Join-Path $artifactDir 'revenuecat-paywall.png')
 
     $valid = $false
-    $purchaseDeadline = (Get-Date).AddSeconds(45)
+    $purchaseDeadline = (Get-Date).AddSeconds(50)
     do {
       try {
         $valid = Find-And-Tap -Adb $Adb -Candidates @('TEST VALID PURCHASE') -Name 'qa-valid-direct'
@@ -141,24 +89,13 @@ function Test-RevenueCat {
     } until ($valid -or (Get-Date) -gt $purchaseDeadline)
 
     if (-not $valid) {
-      throw 'TEST VALID PURCHASE nao apareceu no fluxo RevenueCat acionado pelo hook nativo.'
+      throw 'TEST VALID PURCHASE nao apareceu no paywall RevenueCat aberto pelo controle nativo QA.'
     }
 
     Start-Sleep 8
-
-    $purchaseConfirmed = $false
-    try {
-      $resultLine = Wait-QaMarker -Run $openRun -Action 'open-plan-result' -Seconds 45
-      $purchaseConfirmed = $resultLine -match 'isPro=true'
-    } catch {}
-
-    if (-not $purchaseConfirmed) {
-      $verifyRun = New-QaRun -Prefix 'state-after-purchase'
-      Invoke-QaLink -Action 'state' -Run $verifyRun
-      $verifyLine = Wait-QaMarker -Run $verifyRun -Action 'state' -Seconds 25
-      if ($verifyLine -notmatch 'isPro=true') {
-        throw "RevenueCat nao ativou Pro apos TEST VALID PURCHASE: $verifyLine"
-      }
+    $becamePro = Wait-QaProState -Seconds 45 -Name 'qa-status-after-purchase'
+    if (-not $becamePro) {
+      throw 'RevenueCat nao ativou Pro apos TEST VALID PURCHASE.'
     }
   }
 
@@ -170,20 +107,24 @@ function Test-RevenueCat {
   Start-Sleep 10
   Assert-AppLoaded -Adb $Adb
 
-  $persistRun = New-QaRun -Prefix 'state-persist'
-  Invoke-QaLink -Action 'state' -Run $persistRun
-  $persistLine = Wait-QaMarker -Run $persistRun -Action 'state' -Seconds 25
-  if ($persistLine -notmatch 'isPro=true') {
-    throw "RevenueCat nao manteve Pro apos reabrir: $persistLine"
+  $persistedPro = Wait-QaProState -Seconds 35 -Name 'qa-status-persist'
+  if (-not $persistedPro) {
+    throw 'RevenueCat nao manteve Pro apos fechar e reabrir o app.'
   }
 
   Capture-Screen -Path (Join-Path $artifactDir 'revenuecat-pro.png')
 
-  $restoreRun = New-QaRun -Prefix 'restore'
-  Invoke-QaLink -Action 'restore' -Run $restoreRun
-  $restoreLine = Wait-QaMarker -Run $restoreRun -Action 'restore' -Seconds 35
-  if ($restoreLine -notmatch 'isPro=true') {
-    throw "Restore Purchases nao preservou Pro: $restoreLine"
+  if (-not (Find-And-Tap -Adb $Adb -Candidates @('QA RevenueCat Restore') -Name 'qa-restore')) {
+    throw 'Controle nativo QA RevenueCat Restore nao encontrado.'
+  }
+
+  if (-not (Wait-Text -Adb $Adb -Candidates @('QA RevenueCat Action restore-complete') -Seconds 35 -Name 'qa-restore-complete')) {
+    throw 'Restore Purchases nao concluiu pelo controle nativo QA.'
+  }
+
+  $restoredPro = Wait-QaProState -Seconds 20 -Name 'qa-status-after-restore'
+  if (-not $restoredPro) {
+    throw 'Restore Purchases concluiu, mas o entitlement Pro nao permaneceu ativo.'
   }
 }
 
@@ -193,10 +134,10 @@ try {
 $runnerText = $runnerText.Substring(0, $match.Index) + $replacement + $runnerText.Substring($match.Index + $match.Length)
 Set-Content -Path $runner -Value $runnerText -Encoding utf8
 
-# O hook so existe em build de desenvolvimento e exige esta flag explicita.
+# Os controles QA so aparecem em build de desenvolvimento com esta flag explicita.
 $env:EXPO_PUBLIC_QA_AUTOMATION = '1'
 
-Write-Host 'RevenueCat QA: hook nativo dev-only habilitado para esta execucao.' -ForegroundColor Cyan
+Write-Host 'RevenueCat QA: controles nativos dev-only habilitados para esta execucao.' -ForegroundColor Cyan
 & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $delegate
 if ($LASTEXITCODE -ne 0) {
   throw "hackathon-android-v6.ps1 falhou (exit $LASTEXITCODE)"
