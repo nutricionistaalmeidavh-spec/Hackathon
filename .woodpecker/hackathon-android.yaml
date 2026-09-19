@@ -4,8 +4,6 @@ labels:
 
 when:
   - event: manual
-  - event: push
-    branch: chore/hackathon-woodpecker-ci
 
 steps:
   - name: android-qa
@@ -36,9 +34,6 @@ steps:
     when:
       - event: manual
         status: [success]
-      - event: push
-        branch: chore/hackathon-woodpecker-ci
-        status: [success]
 
   - name: reportar-falha-github
     image: powershell.exe
@@ -56,8 +51,5 @@ steps:
       - 'node $reporter'
     when:
       - event: manual
-        status: [failure]
-      - event: push
-        branch: chore/hackathon-woodpecker-ci
         status: [failure]
     failure: ignore
