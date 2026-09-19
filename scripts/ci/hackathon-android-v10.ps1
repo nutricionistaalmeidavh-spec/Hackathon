@@ -2,11 +2,10 @@ param()
 
 $ErrorActionPreference = 'Stop'
 
-# Compatibilidade do runner Windows: o Expo pode anunciar localhost:8081 e
-# abrir o listener em IPv6 (::1). O v9 verificava apenas 127.0.0.1, gerando
-# falso negativo mesmo com o Metro pronto. Este wrapper nao altera o v9 em
-# runtime; apenas fornece uma verificacao local de porta independente da
-# familia IP durante esta execucao.
+# O Expo anuncia o Metro em http://localhost:8081. No host Windows do
+# Woodpecker, a verificacao TCP usada pelo v9 produziu falsos negativos mesmo
+# com o endpoint respondendo HTTP 200. Mantemos a interface esperada pelo v9,
+# mas a readiness passa a usar o endpoint oficial /status.
 function Test-NetConnection {
   [CmdletBinding()]
   param(
@@ -16,12 +15,17 @@ function Test-NetConnection {
   )
 
   if ($Port -eq 8081 -and $ComputerName -eq '127.0.0.1') {
-    $listener = Get-NetTCPConnection -LocalPort 8081 -State Listen -ErrorAction SilentlyContinue |
-      Select-Object -First 1
+    $ready = $false
+    try {
+      $response = Invoke-WebRequest 'http://localhost:8081/status' -UseBasicParsing -TimeoutSec 3
+      $ready = ($response.StatusCode -eq 200 -and ([string]$response.Content) -match 'packager-status:running')
+    } catch {
+      $ready = $false
+    }
 
     return [pscustomobject]@{
-      TcpTestSucceeded = [bool]$listener
-      ComputerName = $ComputerName
+      TcpTestSucceeded = $ready
+      ComputerName = 'localhost'
       RemotePort = $Port
     }
   }
@@ -30,7 +34,7 @@ function Test-NetConnection {
 }
 
 # Evita o panic do instalador de React Native DevTools observado no Woodpecker.
-# O diretório fica fora do repositório e não contém segredos.
+# O diretorio fica fora do repositorio e nao contem segredos.
 if (-not $env:DOTSLASH_CACHE) {
   $env:DOTSLASH_CACHE = Join-Path $env:TEMP 'artisys-dotslash-cache'
 }
@@ -41,5 +45,5 @@ if (-not (Test-Path $runner)) {
   throw "Runner Android v9 nao encontrado: $runner"
 }
 
-Write-Host 'Android QA v10: readiness do Metro independente de IPv4/IPv6; DOTSLASH_CACHE configurado.' -ForegroundColor Cyan
+Write-Host 'Android QA v10: Metro validado por HTTP /status; DOTSLASH_CACHE configurado.' -ForegroundColor Cyan
 . $runner
