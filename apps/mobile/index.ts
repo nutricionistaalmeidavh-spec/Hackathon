@@ -1,4 +1,4 @@
 import { registerRootComponent } from 'expo';
-import App from './App';
+import QaRoot from './src/qa-root';
 
-registerRootComponent(App);
+registerRootComponent(QaRoot);
