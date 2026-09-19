@@ -8,12 +8,34 @@ $delegate = Join-Path $repo 'scripts\ci\hackathon-android-v6.ps1'
 if (-not (Test-Path $runner)) { throw "Runner base nao encontrado: $runner" }
 if (-not (Test-Path $delegate)) { throw "Runner v6 nao encontrado: $delegate" }
 
+function Clear-StaleMetro {
+  $listeners = @(Get-NetTCPConnection -LocalPort 8081 -State Listen -ErrorAction SilentlyContinue)
+  foreach ($listener in $listeners) {
+    $ownerPid = $listener.OwningProcess
+    if ($ownerPid -and $ownerPid -ne $PID) {
+      Write-Host "Encerrando listener Metro obsoleto na porta 8081 (PID $ownerPid)." -ForegroundColor Yellow
+      Stop-Process -Id $ownerPid -Force -ErrorAction SilentlyContinue
+    }
+  }
+  Start-Sleep 2
+  if (Get-NetTCPConnection -LocalPort 8081 -State Listen -ErrorAction SilentlyContinue) {
+    throw 'Porta 8081 continua ocupada antes de iniciar o Metro do QA.'
+  }
+}
+
 $runnerText = Get-Content $runner -Raw
 $pattern = '(?s)function Test-RevenueCat \{.*?\r?\n\}\r?\n\r?\ntry \{'
 $match = [regex]::Match($runnerText, $pattern)
 if (-not $match.Success) {
   throw 'Nao foi possivel localizar Test-RevenueCat no runner base.'
 }
+
+$metroOld = 'npx.cmd expo start --dev-client --localhost --port 8081'
+$metroNew = 'npx.cmd expo start --dev-client --localhost --port 8081 --clear'
+if (-not $runnerText.Contains($metroOld)) {
+  throw 'Nao foi possivel localizar o comando Metro para forcar cache limpo.'
+}
+$runnerText = $runnerText.Replace($metroOld, $metroNew)
 
 $replacement = @'
 function Test-RevenueCat {
@@ -136,8 +158,12 @@ Set-Content -Path $runner -Value $runnerText -Encoding utf8
 
 # Os controles QA so aparecem em build de desenvolvimento com esta flag explicita.
 $env:EXPO_PUBLIC_QA_AUTOMATION = '1'
+if ($env:EXPO_PUBLIC_QA_AUTOMATION -ne '1') {
+  throw 'Flag EXPO_PUBLIC_QA_AUTOMATION nao foi aplicada ao processo de QA.'
+}
 
-Write-Host 'RevenueCat QA: controles nativos dev-only habilitados para esta execucao.' -ForegroundColor Cyan
+Clear-StaleMetro
+Write-Host 'RevenueCat QA: controles nativos dev-only habilitados; Metro limpo e cache resetado.' -ForegroundColor Cyan
 & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $delegate
 if ($LASTEXITCODE -ne 0) {
   throw "hackathon-android-v6.ps1 falhou (exit $LASTEXITCODE)"
