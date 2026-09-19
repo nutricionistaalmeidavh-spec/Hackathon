@@ -8,6 +8,24 @@ when:
     branch:
       - main
       - chore/hackathon-woodpecker-ci
+    path:
+      include:
+        - '.woodpecker/hackathon-static.yaml'
+        - 'scripts/ci/hackathon-static*.ps1'
+        - 'apps/mobile/**'
+        - 'src/**'
+        - 'worker/**'
+        - 'workers/**'
+        - 'functions/**'
+        - 'public/**'
+        - 'index.html'
+        - 'package.json'
+        - 'package-lock.json'
+        - 'tsconfig*.json'
+        - 'vite.config.*'
+        - 'vitest.config.*'
+        - 'wrangler.toml'
+      on_empty: false
 
 steps:
   - name: static-qa

@@ -8,6 +8,12 @@ when:
     branch:
       - main
       - chore/hackathon-woodpecker-ci
+    path:
+      include:
+        - '.woodpecker/hackathon-android.yaml'
+        - 'scripts/ci/hackathon-android*.ps1'
+        - 'apps/mobile/**'
+      on_empty: false
 
 steps:
   - name: android-qa
@@ -20,7 +26,7 @@ steps:
     commands:
       - '$ErrorActionPreference = "Stop"'
       - '$env:CI = "true"'
-      - 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\scripts\ci\hackathon-android-v7.ps1"'
+      - 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\scripts\ci\hackathon-android-v8.ps1"'
 
   - name: reportar-sucesso-github
     image: powershell.exe
