@@ -23,21 +23,35 @@ function Clear-StaleMetro {
   }
 }
 
-$runnerText = Get-Content $runner -Raw
-$pattern = '(?s)function Test-RevenueCat \{.*?\r?\n\}\r?\n\r?\ntry \{'
-$match = [regex]::Match($runnerText, $pattern)
-if (-not $match.Success) {
-  throw 'Nao foi possivel localizar Test-RevenueCat no runner base.'
-}
+$runnerText = (Get-Content $runner -Raw).Replace("`r`n", "`n")
 
-$metroOld = 'npx.cmd expo start --dev-client --localhost --port 8081'
-$metroNew = 'npx.cmd expo start --dev-client --localhost --port 8081 --clear'
-if (-not $runnerText.Contains($metroOld)) {
-  throw 'Nao foi possivel localizar o comando Metro para forcar cache limpo.'
+$oldRevenueCat = @'
+function Test-RevenueCat {
+  param([string]$Adb)
+  if(-not(Find-And-Tap -Adb $Adb -Candidates @('Mais') -Name 'nav-more')){throw 'Aba Mais nao encontrada.'}
+  Start-Sleep 4
+  $alreadyPro=Wait-Text -Adb $Adb -Candidates @('Plano Pro ativo','Gerenciar assinatura real') -Seconds 3 -Name 'pro-before'
+  if(-not $alreadyPro){
+    if(-not(Find-And-Tap -Adb $Adb -Candidates @('Ver assinatura Pro','Assinar Pro','Gerenciar assinatura') -Name 'open-plan' -Scrolls 5)){throw 'Acao de assinatura nao encontrada em Mais.'}
+    Start-Sleep 5;Capture-Screen -Path (Join-Path $artifactDir 'revenuecat-paywall.png')
+    $valid=Find-And-Tap -Adb $Adb -Candidates @('TEST VALID PURCHASE') -Name 'valid-direct' -Scrolls 2
+    if(-not $valid){$purchase=Find-And-Tap -Adb $Adb -Candidates @('Test Store Purchase','Subscribe','Continue','Get Pro','Upgrade','Assinar') -Name 'purchase' -Scrolls 3;if(-not $purchase){throw 'Acao de compra do paywall nao encontrada.'};Start-Sleep 3;$valid=Find-And-Tap -Adb $Adb -Candidates @('TEST VALID PURCHASE') -Name 'valid-after-purchase' -Scrolls 2}
+    if(-not $valid){throw 'TEST VALID PURCHASE nao apareceu.'};Start-Sleep 8
+  }
+  Invoke-Native -Exe $Adb -Arguments @('shell','am','force-stop','com.engenutri.wheresthemoney')|Out-Null
+  Invoke-Native -Exe $Adb -Arguments @('shell','monkey','-p','com.engenutri.wheresthemoney','-c','android.intent.category.LAUNCHER','1')|Out-Null
+  Start-Sleep 8;Assert-AppLoaded -Adb $Adb
+  if(-not(Find-And-Tap -Adb $Adb -Candidates @('Mais') -Name 'nav-more-after')){throw 'Aba Mais nao encontrada apos reabrir.'}
+  Start-Sleep 4
+  if(-not(Wait-Text -Adb $Adb -Candidates @('Plano Pro ativo','Gerenciar assinatura real') -Seconds 15 -Name 'pro-after')){throw 'RevenueCat nao manteve Pro apos compra/reabertura.'}
+  Capture-Screen -Path (Join-Path $artifactDir 'revenuecat-pro.png')
+  if(-not(Find-And-Tap -Adb $Adb -Candidates @('Restaurar compra','Restaurar','Restore purchases') -Name 'restore' -Scrolls 4)){throw 'Acao Restaurar nao encontrada.'}
+  Start-Sleep 5
+  if(-not(Wait-Text -Adb $Adb -Candidates @('Plano Pro ativo','Gerenciar assinatura real') -Seconds 10 -Name 'restore-pro')){throw 'Restore Purchases nao preservou Pro.'}
 }
-$runnerText = $runnerText.Replace($metroOld, $metroNew)
+'@
 
-$replacement = @'
+$newRevenueCat = @'
 function Test-RevenueCat {
   param([string]$Adb)
 
@@ -105,9 +119,7 @@ function Test-RevenueCat {
   }
 
   Invoke-Native -Exe $Adb -Arguments @('shell','am','force-stop',$package) | Out-Null
-  Invoke-Native -Exe $Adb -Arguments @(
-    'shell','monkey','-p',$package,'-c','android.intent.category.LAUNCHER','1'
-  ) | Out-Null
+  Invoke-Native -Exe $Adb -Arguments @('shell','monkey','-p',$package,'-c','android.intent.category.LAUNCHER','1') | Out-Null
 
   Start-Sleep 10
   Assert-AppLoaded -Adb $Adb
@@ -130,11 +142,19 @@ function Test-RevenueCat {
     throw 'Restore Purchases concluiu, mas o entitlement Pro nao permaneceu ativo.'
   }
 }
-
-try {
 '@
 
-$runnerText = $runnerText.Substring(0, $match.Index) + $replacement + $runnerText.Substring($match.Index + $match.Length)
+if (-not $runnerText.Contains($oldRevenueCat)) {
+  throw 'Bloco Test-RevenueCat base nao corresponde ao esperado; abortando sem alterar o runner.'
+}
+$runnerText = $runnerText.Replace($oldRevenueCat, $newRevenueCat)
+
+$metroOld = 'npx.cmd expo start --dev-client --localhost --port 8081'
+$metroNew = 'npx.cmd expo start --dev-client --localhost --port 8081 --clear'
+if (-not $runnerText.Contains($metroOld)) {
+  throw 'Nao foi possivel localizar o comando Metro para forcar cache limpo.'
+}
+$runnerText = $runnerText.Replace($metroOld, $metroNew)
 
 $tokens = $null
 $parseErrors = $null
@@ -146,14 +166,13 @@ if (@($parseErrors).Count -gt 0) {
 
 Set-Content -Path $runner -Value $runnerText -Encoding utf8
 
-# Os controles QA so aparecem em build de desenvolvimento com esta flag explicita.
 $env:EXPO_PUBLIC_QA_AUTOMATION = '1'
 if ($env:EXPO_PUBLIC_QA_AUTOMATION -ne '1') {
   throw 'Flag EXPO_PUBLIC_QA_AUTOMATION nao foi aplicada ao processo de QA.'
 }
 
 Clear-StaleMetro
-Write-Host 'RevenueCat QA: controles nativos dev-only habilitados; Metro limpo e runner validado antes do build.' -ForegroundColor Cyan
+Write-Host 'RevenueCat QA: bloco substituido de forma exata; Metro limpo e runner validado por AST.' -ForegroundColor Cyan
 & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $delegate
 if ($LASTEXITCODE -ne 0) {
   throw "hackathon-android-v6.ps1 falhou (exit $LASTEXITCODE)"
