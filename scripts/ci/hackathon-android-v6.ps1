@@ -8,7 +8,9 @@ $shortRepo = Join-Path $shortRootBase ("h-$runKey")
 $originalArtifacts = Join-Path $repoLong 'artifacts'
 $shortArtifacts = Join-Path $shortRepo 'artifacts'
 $runner = Join-Path $shortRepo 'scripts\ci\hackathon-android-v11.ps1'
+$bootstrap = Join-Path $shortRepo 'scripts\ci\hackathon-devclient-bootstrap.ps1'
 $exitCode = 1
+$bootstrapProcess = $null
 
 function Sync-ArtifactsBack {
   if (Test-Path $shortArtifacts) {
@@ -57,6 +59,9 @@ try {
   if (-not (Test-Path $runner)) {
     throw "Runner Android versionado nao encontrado no workspace curto: $runner"
   }
+  if (-not (Test-Path $bootstrap)) {
+    throw "Bootstrap do Expo dev client nao encontrado: $bootstrap"
+  }
 
   $resolvedShort = (Resolve-Path $shortRepo).Path
   if ($resolvedShort.Length -gt 40) {
@@ -71,14 +76,38 @@ try {
     throw "Runner Android versionado com sintaxe invalida: $detail"
   }
 
+  $bootstrapTokens = $null
+  $bootstrapParseErrors = $null
+  [System.Management.Automation.Language.Parser]::ParseFile($bootstrap, [ref]$bootstrapTokens, [ref]$bootstrapParseErrors) | Out-Null
+  if (@($bootstrapParseErrors).Count -gt 0) {
+    $detail = @($bootstrapParseErrors | ForEach-Object { $_.Message }) -join ' | '
+    throw "Bootstrap do Expo dev client com sintaxe invalida: $detail"
+  }
+
   $env:CI = 'true'
   $env:EXPO_PUBLIC_QA_AUTOMATION = '1'
   $env:REACT_NATIVE_PACKAGER_HOSTNAME = '127.0.0.1'
   $env:ARTISYS_HACKATHON_METRO_SOURCE = $repoLong
 
+  $adbPath = if ($env:ANDROID_HOME) {
+    Join-Path $env:ANDROID_HOME 'platform-tools\adb.exe'
+  } else {
+    'C:\Users\Marcio\AppData\Local\Android\Sdk\platform-tools\adb.exe'
+  }
+  $bootstrapLog = Join-Path $shortArtifacts 'devclient-bootstrap.log'
+
   Write-Host "Workspace Android fisico: $resolvedShort" -ForegroundColor Green
   Write-Host "Metro sera executado no workspace original: $repoLong" -ForegroundColor Green
   Write-Host 'Runner Android v11 validado; build curto e Metro original separados.' -ForegroundColor Green
+  Write-Host 'Bootstrap do Expo dev client sera automatizado antes do smoke.' -ForegroundColor Green
+
+  $bootstrapProcess = Start-Process powershell.exe -WindowStyle Hidden -PassThru -ArgumentList @(
+    '-NoProfile',
+    '-ExecutionPolicy','Bypass',
+    '-File',$bootstrap,
+    '-AdbPath',$adbPath,
+    '-LogPath',$bootstrapLog
+  )
 
   & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $runner
   $exitCode = $LASTEXITCODE
@@ -89,6 +118,11 @@ try {
   }
 }
 finally {
+  try {
+    if ($bootstrapProcess -and -not $bootstrapProcess.HasExited) {
+      Stop-Process -Id $bootstrapProcess.Id -Force -ErrorAction SilentlyContinue
+    }
+  } catch {}
   try { Sync-ArtifactsBack } catch {}
   try { Set-Location 'C:\' } catch {}
   try {
