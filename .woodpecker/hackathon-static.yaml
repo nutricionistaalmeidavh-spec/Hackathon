@@ -4,28 +4,6 @@ labels:
 
 when:
   - event: manual
-  - event: push
-    branch:
-      - main
-      - chore/hackathon-woodpecker-ci
-    path:
-      include:
-        - '.woodpecker/hackathon-static.yaml'
-        - 'scripts/ci/hackathon-static*.ps1'
-        - 'apps/mobile/**'
-        - 'src/**'
-        - 'worker/**'
-        - 'workers/**'
-        - 'functions/**'
-        - 'public/**'
-        - 'index.html'
-        - 'package.json'
-        - 'package-lock.json'
-        - 'tsconfig*.json'
-        - 'vite.config.*'
-        - 'vitest.config.*'
-        - 'wrangler.toml'
-      on_empty: false
 
 steps:
   - name: static-qa
@@ -50,7 +28,7 @@ steps:
       - 'if (-not (Test-Path $reporter)) { git -C $env:ARTISYS_UTILIDADES_PATH pull --ff-only }'
       - 'node $reporter'
     when:
-      - event: [push, manual]
+      - event: manual
         status: [success]
 
   - name: reportar-falha-github
@@ -68,6 +46,6 @@ steps:
       - 'if (-not (Test-Path $reporter)) { git -C $env:ARTISYS_UTILIDADES_PATH pull --ff-only }'
       - 'node $reporter'
     when:
-      - event: [push, manual]
+      - event: manual
         status: [failure]
     failure: ignore
