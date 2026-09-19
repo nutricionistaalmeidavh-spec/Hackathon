@@ -24,7 +24,7 @@ export default function QaRoot() {
     if (!QA_ENABLED) return;
 
     let mounted = true;
-    let unsubscribe = () => undefined;
+    let unsubscribe: () => void = () => undefined;
 
     void initializeRevenueCat(mobileConfig.revenueCatApiKey).then((state) => {
       if (!mounted) return;
