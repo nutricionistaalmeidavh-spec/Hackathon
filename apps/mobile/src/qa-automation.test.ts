@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { isQaAutomationEnabled, parseRevenueCatQaUrl } from './qa-automation';
+import {
+  isQaAutomationEnabled,
+  parseRevenueCatQaUrl,
+  revenueCatQaStatusLabel,
+} from './qa-automation';
 
 describe('RevenueCat QA automation', () => {
   it('requires both a development build and the explicit QA flag', () => {
@@ -27,5 +31,11 @@ describe('RevenueCat QA automation', () => {
     expect(parseRevenueCatQaUrl('https://example.com/qa/revenuecat/state')).toBeNull();
     expect(parseRevenueCatQaUrl('wheresthemoney://qa/revenuecat/delete')).toBeNull();
     expect(parseRevenueCatQaUrl('wheresthemoney://qa/revenuecat/state?run=%E0%A4%A')).toBeNull();
+  });
+
+  it('exposes RevenueCat state as a stable native accessibility label for UI automation', () => {
+    expect(revenueCatQaStatusLabel(false, false)).toBe('QA RevenueCat Status configured=false isPro=false');
+    expect(revenueCatQaStatusLabel(true, false)).toBe('QA RevenueCat Status configured=true isPro=false');
+    expect(revenueCatQaStatusLabel(true, true)).toBe('QA RevenueCat Status configured=true isPro=true');
   });
 });
