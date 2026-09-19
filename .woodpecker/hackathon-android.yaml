@@ -4,16 +4,6 @@ labels:
 
 when:
   - event: manual
-  - event: push
-    branch:
-      - main
-      - chore/hackathon-woodpecker-ci
-    path:
-      include:
-        - '.woodpecker/hackathon-android.yaml'
-        - 'scripts/ci/hackathon-android*.ps1'
-        - 'apps/mobile/**'
-      on_empty: false
 
 steps:
   - name: android-qa
@@ -42,7 +32,7 @@ steps:
       - 'if (-not (Test-Path $reporter)) { git -C $env:ARTISYS_UTILIDADES_PATH pull --ff-only }'
       - 'node $reporter'
     when:
-      - event: [push, manual]
+      - event: manual
         status: [success]
 
   - name: reportar-falha-github
@@ -60,6 +50,6 @@ steps:
       - 'if (-not (Test-Path $reporter)) { git -C $env:ARTISYS_UTILIDADES_PATH pull --ff-only }'
       - 'node $reporter'
     when:
-      - event: [push, manual]
+      - event: manual
         status: [failure]
     failure: ignore
