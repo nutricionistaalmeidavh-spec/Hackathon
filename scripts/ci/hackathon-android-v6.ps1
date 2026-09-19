@@ -7,7 +7,7 @@ $shortRootBase = 'C:\w'
 $shortRepo = Join-Path $shortRootBase ("h-$runKey")
 $originalArtifacts = Join-Path $repoLong 'artifacts'
 $shortArtifacts = Join-Path $shortRepo 'artifacts'
-$runner = Join-Path $shortRepo 'scripts\ci\hackathon-android-v9.ps1'
+$runner = Join-Path $shortRepo 'scripts\ci\hackathon-android-v10.ps1'
 $exitCode = 1
 
 function Sync-ArtifactsBack {
@@ -76,13 +76,13 @@ try {
   $env:REACT_NATIVE_PACKAGER_HOSTNAME = '127.0.0.1'
 
   Write-Host "Workspace Android fisico: $resolvedShort" -ForegroundColor Green
-  Write-Host 'Runner Android v9 validado; nenhuma substituicao dinamica sera aplicada.' -ForegroundColor Green
+  Write-Host 'Runner Android v10 validado; readiness do Metro aceita listener IPv4 ou IPv6.' -ForegroundColor Green
   & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $runner
   $exitCode = $LASTEXITCODE
   Sync-ArtifactsBack
 
   if ($exitCode -ne 0) {
-    throw "hackathon-android-v9.ps1 falhou (exit $exitCode)"
+    throw "hackathon-android-v10.ps1 falhou (exit $exitCode)"
   }
 }
 finally {
