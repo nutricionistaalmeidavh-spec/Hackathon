@@ -7,7 +7,7 @@ $shortRootBase = 'C:\w'
 $shortRepo = Join-Path $shortRootBase ("h-$runKey")
 $originalArtifacts = Join-Path $repoLong 'artifacts'
 $shortArtifacts = Join-Path $shortRepo 'artifacts'
-$runner = Join-Path $shortRepo 'scripts\ci\hackathon-android-v3.ps1'
+$runner = Join-Path $shortRepo 'scripts\ci\hackathon-android-v9.ps1'
 $exitCode = 1
 
 function Sync-ArtifactsBack {
@@ -55,7 +55,7 @@ try {
   }
 
   if (-not (Test-Path $runner)) {
-    throw "Runner Android nao encontrado no workspace curto: $runner"
+    throw "Runner Android versionado nao encontrado no workspace curto: $runner"
   }
 
   $resolvedShort = (Resolve-Path $shortRepo).Path
@@ -63,44 +63,26 @@ try {
     throw "Workspace curto continua longo demais: $resolvedShort"
   }
 
-  # O dev client deve acessar o Metro pelo adb reverse, sem depender do IP da LAN.
-  $env:REACT_NATIVE_PACKAGER_HOSTNAME = '127.0.0.1'
-
-  # O primeiro bundle do Metro pode levar mais de 10s no runner frio. Endurecemos
-  # apenas a copia efemera e mantemos o script base versionado simples.
-  $runnerText = Get-Content $runner -Raw
-  $oldBuild = "Invoke-Flow 'android-build-install' { Invoke-Native -Exe 'npx.cmd' -Arguments @('expo','run:android','--no-bundler') -WorkingDirectory (Join-Path `$repo 'apps\mobile')|Out-Null;Start-Sleep 10 }"
-  $newBuild = "Invoke-Flow 'android-build-install' { Invoke-Native -Exe 'npx.cmd' -Arguments @('expo','run:android','--no-bundler') -WorkingDirectory (Join-Path `$repo 'apps\mobile')|Out-Null;Start-Sleep 35 }"
-  if (-not $runnerText.Contains($oldBuild)) {
-    throw 'Nao foi possivel localizar o bloco android-build-install para endurecer o bootstrap.'
-  }
-  $runnerText = $runnerText.Replace($oldBuild, $newBuild)
-
-  $oldSmoke = "Invoke-Flow 'android-smoke' { Assert-AppLoaded -Adb `$tools.adb;Capture-Screen -Path (Join-Path `$artifactDir 'android-home.png') }"
-  $newSmoke = "Invoke-Flow 'android-smoke' { Start-Sleep 45; Assert-AppLoaded -Adb `$tools.adb; Capture-Screen -Path (Join-Path `$artifactDir 'android-home.png') }"
-  if (-not $runnerText.Contains($oldSmoke)) {
-    throw 'Nao foi possivel localizar o bloco android-smoke para adicionar espera de bootstrap.'
-  }
-  $runnerText = $runnerText.Replace($oldSmoke, $newSmoke)
-
   $tokens = $null
   $parseErrors = $null
-  [System.Management.Automation.Language.Parser]::ParseInput($runnerText, [ref]$tokens, [ref]$parseErrors) | Out-Null
+  [System.Management.Automation.Language.Parser]::ParseFile($runner, [ref]$tokens, [ref]$parseErrors) | Out-Null
   if (@($parseErrors).Count -gt 0) {
     $detail = @($parseErrors | ForEach-Object { $_.Message }) -join ' | '
-    throw "Runner Android gerado invalido apos endurecimento do bootstrap: $detail"
+    throw "Runner Android versionado com sintaxe invalida: $detail"
   }
 
-  Set-Content -Path $runner -Value $runnerText -Encoding utf8
+  $env:CI = 'true'
+  $env:EXPO_PUBLIC_QA_AUTOMATION = '1'
+  $env:REACT_NATIVE_PACKAGER_HOSTNAME = '127.0.0.1'
 
   Write-Host "Workspace Android fisico: $resolvedShort" -ForegroundColor Green
-  Write-Host 'Bootstrap Android: Metro via localhost + espera adicional antes do smoke.' -ForegroundColor Green
+  Write-Host 'Runner Android v9 validado; nenhuma substituicao dinamica sera aplicada.' -ForegroundColor Green
   & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $runner
   $exitCode = $LASTEXITCODE
   Sync-ArtifactsBack
 
   if ($exitCode -ne 0) {
-    throw "hackathon-android-v3.ps1 falhou (exit $exitCode)"
+    throw "hackathon-android-v9.ps1 falhou (exit $exitCode)"
   }
 }
 finally {
