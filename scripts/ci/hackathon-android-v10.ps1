@@ -18,7 +18,12 @@ function Test-NetConnection {
     $ready = $false
     try {
       $response = Invoke-WebRequest 'http://localhost:8081/status' -UseBasicParsing -TimeoutSec 3
-      $ready = ($response.StatusCode -eq 200 -and ([string]$response.Content) -match 'packager-status:running')
+      $content = if ($response.Content -is [byte[]]) {
+        [Text.Encoding]::UTF8.GetString($response.Content)
+      } else {
+        [string]$response.Content
+      }
+      $ready = ($response.StatusCode -eq 200 -and $content.Trim() -eq 'packager-status:running')
     } catch {
       $ready = $false
     }
